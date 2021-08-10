@@ -1,6 +1,4 @@
-use sp_std::{ fmt, cmp };
-use sp_std::vec::Vec;
-
+use sp_std::{ fmt, cmp, vec, vec::Vec };
 use crate::{
     math::field,
     OpCode,

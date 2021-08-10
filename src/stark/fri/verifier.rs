@@ -2,9 +2,10 @@ use sp_std::mem;
 use crate::math::{ field, polynom, quartic };
 use crate::crypto::{ MerkleTree, BatchMerkleProof };
 use crate::stark::{ ProofOptions };
-use alloc::string::String;
+
 use super::{ FriProof, FriLayer, utils };
 use sp_std::vec::Vec;
+use alloc::string::String;
 
 // VERIFIER
 // ================================================================================================

@@ -5,8 +5,6 @@ use crate::{
     utils::hasher::ARK,
     BASE_CYCLE_LENGTH, HASH_STATE_WIDTH
 };
-use sp_std::vec::Vec;
-
 use super::utils::{
     are_equal, is_zero, is_binary, binary_not, extend_constants, EvaluationResult,
     enforce_stack_copy, enforce_left_shift, enforce_right_shift,
@@ -35,6 +33,8 @@ use conditional::{ enforce_choose, enforce_choose2, enforce_cswap2 };
 
 mod hash;
 use hash::{ enforce_rescr };
+
+use sp_std::{vec, vec::Vec};
 
 // CONSTANTS
 // ================================================================================================
@@ -80,6 +80,19 @@ impl Stack {
         return &self.constraint_degrees;
     }
 
+    // EVALUATOR FUNCTIONS
+    // --------------------------------------------------------------------------------------------
+
+    /// Evaluates stack transition constraints at the specified step of the evaluation domain and
+    /// saves the evaluations into `result`.
+    pub fn evaluate(&self, current: &TraceState, next: &TraceState, step: usize, result: &mut [u128])
+    {
+        // determine round constants at the specified step
+        let ark = self.ark_values[step % self.cycle_length];
+
+        // evaluate transition constraints for the stack
+        enforce_constraints(current, next, &ark, result);
+    }
 
     /// Evaluates stack transition constraints at the specified x coordinate and saves the
     /// evaluations into `result`. Unlike the function above, this function can evaluate constraints

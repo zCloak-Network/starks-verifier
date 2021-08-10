@@ -1,6 +1,4 @@
-use sp_std::{ ops::Range };
-use sp_std::vec::Vec;
-
+use sp_std::{ ops::Range, vec, vec::Vec};
 use crate::{
     math::field,
     utils::RangeSlider,

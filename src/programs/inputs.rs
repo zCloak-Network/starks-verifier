@@ -1,7 +1,8 @@
 use crate::{ MAX_PUBLIC_INPUTS };
-use sp_std::vec::Vec;
+use sp_std::{vec, vec::Vec};
+use serde::{Serialize, Deserialize};
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct ProgramInputs {
     public: Vec<u128>,
     secret: [Vec<u128>; 2],

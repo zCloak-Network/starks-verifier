@@ -1,5 +1,5 @@
 use criterion::{ black_box, criterion_group, Criterion };
-use pallet_starksVM::crypto::hash;
+use starksVM::crypto::hash;
 
 pub fn poseidon(c: &mut Criterion) {
     let v: [u8; 64] = [

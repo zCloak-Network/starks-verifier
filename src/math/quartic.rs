@@ -1,7 +1,6 @@
 use crate::math::{ field };
 use crate::utils::uninit_vector;
 use sp_std::vec::Vec;
-
 /// Evaluates degree 3 polynomial `p` at coordinate `x`. This function is about 30% faster than
 /// the `polys::eval` function.
 pub fn eval(p: &[u128], x: u128) -> u128 {

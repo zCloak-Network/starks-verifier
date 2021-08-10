@@ -1,6 +1,5 @@
 use crate::{ utils::sponge };
 use sp_std::vec::Vec;
-
 use super::{
     ProgramBlock, OpCode, BASE_CYCLE_LENGTH, SPONGE_WIDTH as STATE_WIDTH, HACC_NUM_ROUNDS,
 };
