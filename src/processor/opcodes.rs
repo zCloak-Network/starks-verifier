@@ -1,3 +1,5 @@
+use serde::{ Serialize, Deserialize };
+
 // FLOW CONTROL OPERATIONS
 // ================================================================================================
 #[repr(u8)]
@@ -42,7 +44,7 @@ impl sp_std::fmt::Display for FlowOps {
 // USER OPERATIONS
 // ================================================================================================
 #[repr(u8)]
-#[derive(Copy, Clone, Debug, PartialEq)]
+#[derive(Copy, Clone, Debug, PartialEq, Serialize, Deserialize )]
 pub enum UserOps {
     
     // low-degree operations
@@ -169,7 +171,7 @@ impl sp_std::fmt::Display for UserOps {
 
 // OPERATION HINTS
 // ================================================================================================
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, Serialize, Deserialize)]
 pub enum OpHint {
     EqStart,
     RcStart(u32),

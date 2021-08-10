@@ -5,9 +5,13 @@ use sp_std::vec::Vec;
 // ================================================================================================
 mod utils;
 
+mod prover;
+pub use prover::{ reduce, build_proof };
+
 mod verifier;
 pub use verifier::{ verify };
 
+const MAX_REMAINDER_LENGTH: usize = 256;
 
 // TYPES AND INTERFACES
 // ================================================================================================

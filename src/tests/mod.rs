@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use sp_std::collections::HashMap;
 use crate::{
     ProofOptions, Program, ProgramInputs, OpCode, OpHint,
     blocks::{ ProgramBlock, Span, Group },

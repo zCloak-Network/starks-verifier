@@ -1,6 +1,8 @@
 use hashbrown::HashMap;
+use serde::{Serialize, Deserialize};
 use super::{ OpCode, OpHint, hash_seq, hash_op, BASE_CYCLE_LENGTH };
 use sp_std::{vec, vec::Vec};
+
 #[cfg(test)]
 mod tests;
 
@@ -26,7 +28,7 @@ const LOOP_BLOCK_SUFFIX: [u8; 16] = [
 // TYPES AND INTERFACES
 // ================================================================================================
 
-#[derive(Clone)]
+#[derive(Clone, Serialize, Deserialize)]
 pub enum ProgramBlock {
     Span(Span),
     Group(Group),
@@ -34,24 +36,24 @@ pub enum ProgramBlock {
     Loop(Loop),
 }
 
-#[derive(Clone)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct Span {
     op_codes    : Vec<OpCode>,
     op_hints    : HashMap<usize, OpHint>,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct Group {
     body        : Vec<ProgramBlock>,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct Switch {
     t_branch    : Vec<ProgramBlock>,
     f_branch    : Vec<ProgramBlock>,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct Loop {
     body        : Vec<ProgramBlock>,
     skip        : Vec<ProgramBlock>,

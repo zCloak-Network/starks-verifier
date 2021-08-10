@@ -1,4 +1,4 @@
-use sp_std::{ cmp };
+use sp_std::{ cmp, vec::Vec };
 use crate::{
     math::{ field, polynom },
     processor::opcodes::{ FlowOps, UserOps },
@@ -9,7 +9,6 @@ use super::utils::{
     are_equal, is_zero, is_binary, binary_not, extend_constants, EvaluationResult,
     enforce_stack_copy, enforce_left_shift, enforce_right_shift,
 };
-use sp_std::vec::Vec;
 
 mod op_bits;
 use op_bits::{ enforce_op_bits };
@@ -122,6 +121,33 @@ impl Decoder {
         return &self.constraint_degrees;
     }
 
+    // EVALUATOR FUNCTIONS
+    // --------------------------------------------------------------------------------------------
+
+    /// Evaluates decoder transition constraints at the specified step of the evaluation domain and
+    /// saves the evaluations into `result`.
+    pub fn evaluate(&self, current: &TraceState, next: &TraceState, step: usize, result: &mut [u128])
+    {
+        // determine round and mask constants at the specified step
+        let ark = self.ark_values[step % self.cycle_length];
+        let masks = self.mask_values[step % self.cycle_length];
+
+        // evaluate constraints for decoding op codes
+        enforce_op_bits(&mut result[..NUM_OP_CONSTRAINTS], current, next, &masks);
+
+        // evaluate constraints for flow control operations
+        let result = &mut result[NUM_OP_CONSTRAINTS..];
+        let op_flags = current.cf_op_flags();
+
+        enforce_hacc (result, current, next, &ark, op_flags[FlowOps::Hacc.op_index() ]);
+        enforce_begin(result, current, next,       op_flags[FlowOps::Begin.op_index()]);
+        enforce_tend (result, current, next,       op_flags[FlowOps::Tend.op_index() ]);
+        enforce_fend (result, current, next,       op_flags[FlowOps::Fend.op_index() ]);
+        enforce_loop (result, current, next,       op_flags[FlowOps::Loop.op_index() ]);
+        enforce_wrap (result, current, next,       op_flags[FlowOps::Wrap.op_index() ]);
+        enforce_break(result, current, next,       op_flags[FlowOps::Break.op_index()]);
+        enforce_void (result, current, next,       op_flags[FlowOps::Void.op_index() ]);
+    }
 
     /// Evaluates decoder transition constraints at the specified x coordinate and saves the
     /// evaluations into `result`. Unlike the function above, this function can evaluate constraints

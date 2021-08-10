@@ -1,15 +1,17 @@
-use sp_std::{ mem, slice, ops::Range };
-use sp_std::vec::Vec;
+use sp_std::{ mem, slice, ops::Range, vec::Vec };
 
 // RE-EXPORTS
 // ================================================================================================
 pub mod hasher;
 pub mod sponge;
+use sp_std::vec;
+// use wasm_bindgen_test::console_log;
 
 // VECTOR FUNCTIONS
 // ================================================================================================
 pub fn uninit_vector<T>(length: usize) -> Vec<T> {
     let mut vector = Vec::with_capacity(length);
+
     unsafe { vector.set_len(length); }
     return vector;
 }

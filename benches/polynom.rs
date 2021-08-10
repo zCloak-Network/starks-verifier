@@ -1,5 +1,5 @@
 use criterion::{ black_box, criterion_group, Criterion };
-use pallet_starksVM::math::{ field, polynom, quartic };
+use starksVM::math::{ field, polynom, quartic };
 
 pub fn eval(c: &mut Criterion) {
     let p = field::rand_vector(1024);

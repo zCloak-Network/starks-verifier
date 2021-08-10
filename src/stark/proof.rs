@@ -3,11 +3,24 @@ use crate::crypto::{ BatchMerkleProof };
 use crate::stark::{ fri::FriProof, TraceState, ProofOptions };
 use crate::utils::{ uninit_vector, as_bytes };
 use sp_std::vec::Vec;
-
+use alloc::string::String;
 // TYPES AND INTERFACES
 // ================================================================================================
 
 // TODO: custom serialization should reduce size by 5% - 10%
+#[derive(Clone, Serialize, Deserialize)]
+pub struct GenOutput{
+    pub stark_output: Vec<u128>,
+    pub stark_proof: String,
+}
+
+#[derive(Clone, Serialize, Deserialize)]
+pub struct ProgramAssembly{
+    pub AssemblyLanguage:String,
+    pub programhash:String,
+}
+
+
 #[derive(Clone, Serialize, Deserialize)]
 pub struct StarkProof {
     trace_root          : [u8; 32],

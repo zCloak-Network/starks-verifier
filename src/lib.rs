@@ -1,5 +1,7 @@
-#![cfg_attr(not(feature = "std"), no_std)]
-use sp_std::{ops::Range};
+#![no_std]
+use log::debug;
+use sp_std::{ops::Range, vec, vec::Vec};
+use serde::{Serialize, Deserialize};
 
 #[macro_use]
 extern crate alloc;
@@ -12,23 +14,98 @@ pub mod math;
 pub mod utils;
 
 mod stark;
-pub use stark::{ StarkProof, ProofOptions };
-
+pub use stark::{ StarkProof, ProofOptions, GenOutput, ProgramAssembly };
 mod processor;
 pub use processor::{ OpCode, OpHint };
 
 mod programs;
 pub use programs::{ Program, ProgramInputs, assembly, blocks };
 
-// VERIFIER
-// ================================================================================================
 
-/// Verifies that if a program with the specified `program_hash` is executed with the 
-/// provided `public_inputs` and some secret inputs, the result is equal to the `outputs`.
+extern crate console_error_panic_hook;
+
+// extern crate wasm_bindgen;
+// use wasm_bindgen::prelude::*;
+use blocks::{ ProgramBlock, Span, Group, Switch, Loop };
+
+extern crate web_sys;
+// use wasm_bindgen_test::*;
+use codec::{Decode, Encode};
+use crate::alloc::string::ToString;
+
 pub fn verify(program_hash: &[u8; 32], public_inputs: &[u128], outputs: &[u128], proof: &StarkProof) -> Result<bool, String>
 {
     return stark::verify(program_hash, public_inputs, outputs, proof);
 }
+
+
+
+// pub fn main_test() {
+//     log::trace!(
+//         target: "starks-proofgen",
+//         "This is a program to generate proof for 'Number over 20', please enter a number to be verified:
+//         We choose 24 for you as a test. ",    
+//     );
+
+//     let number_to_be_verified: u128 = 24;
+
+//     let inputs = ProgramInputs::new(&[], &[number_to_be_verified as u128], &[]);
+//     let num_outputs = 1;
+//     let expected_result = vec![if_over_twen(number_to_be_verified as u128)];
+//     let options = ProofOptions::default();
+//     let program = assembly::compile("
+//     begin
+//         push.20 read gt.128
+//     end").unwrap();
+
+//     log::trace!(
+//         target: "starks-proofgen",
+//         "This is a program to proof your number is over 20 or not ; expected result: {:?}" ,
+//         expected_result , 
+//     );
+
+
+//     // execute the program and generate the proof of execution
+//     let (outputs, proof) = starks_proofgen(&program, &inputs, num_outputs, &options);
+//     // println!("--------------------------------");
+//     log::trace!(
+//         target: "starks-proofgen",
+//         "Executed program with hash 0x{},Program output: {:?}" ,
+//         hex::encode(program.hash()),outputs,
+//     );
+
+//     assert_eq!(expected_result, outputs, "Program result was computed incorrectly");
+//     // serialize the proof to see how big it is
+    
+//     let proof_bytes = bincode::serialize(&proof).unwrap();
+//     let _proof_hex = hex::encode(&proof_bytes);
+//     // println!("proof_hex is {:?}",proof_hex);
+    
+//     log::trace!(
+//         target: "starks-proofgen",
+//         "Execution proof size: {} KB,Execution proof security: {} bits" ,
+//         proof_bytes.len() / 1024, options.security_level(true),
+//     );
+// }
+
+// fn if_over_twen(value: u128) -> u128{
+//     log::trace!(
+//         target: "starks-proofgen",
+//         "your number is {:?}",
+//         value,
+//     );
+
+//     if value > 20{
+//         return 1;
+//     }else{
+//         return 0;
+//     }
+// }
+
+
+
+
+
 
 // GLOBAL CONSTANTS
 // ================================================================================================

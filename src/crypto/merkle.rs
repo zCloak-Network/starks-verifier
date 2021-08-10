@@ -1,14 +1,16 @@
 use sp_std::{slice, vec};
 use hashbrown::HashMap;
 use sp_std::vec::Vec;
-use serde::{ Serialize, Deserialize };
+// use wasm_bindgen_test::console_log;
 
 #[cfg(feature = "alloc")]
 use alloc::{collections::BTreeSet as HashSet, vec::Vec};
 
 // use sp_std::collections::{ BTreeSet };
+use serde::{ Serialize, Deserialize };
 use crate::crypto::{ HashFunction };
 use sp_std::collections::btree_set::BTreeSet;
+
 // TYPES AND INTERFACES
 // ================================================================================================
 pub struct MerkleTree {
@@ -158,6 +160,7 @@ impl MerkleTree {
 
     /// Checks whether the batch proof contains merkle paths for the of the specified indexes.
     pub fn verify_batch(root: &[u8; 32], indexes: &[usize], proof: &BatchMerkleProof, hash: HashFunction) -> bool {
+
         let mut buf = [0u8; 64];
         let mut v: HashMap<usize, [u8; 32]> = HashMap::new();
 

@@ -1,5 +1,5 @@
 use criterion::{ black_box, criterion_group, Criterion };
-use pallet_starksVM::math::{ field, parallel };
+use starksVM::math::{ field, parallel };
 
 pub fn add128(c: &mut Criterion) {
     let x = field::rand();
