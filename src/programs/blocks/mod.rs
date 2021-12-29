@@ -1,6 +1,6 @@
+use super::{hash_op, hash_seq, OpCode, OpHint, BASE_CYCLE_LENGTH};
 use hashbrown::HashMap;
-use serde::{Serialize, Deserialize};
-use super::{ OpCode, OpHint, hash_seq, hash_op, BASE_CYCLE_LENGTH };
+use serde::{Deserialize, Serialize};
 use sp_std::{vec, vec::Vec};
 
 #[cfg(test)]
@@ -12,17 +12,40 @@ const BLOCK_SUFFIX: [u8; 1] = [OpCode::Noop as u8];
 const BLOCK_SUFFIX_OFFSET: usize = BASE_CYCLE_LENGTH - 1;
 
 const LOOP_SKIP_BLOCK: [OpCode; 15] = [
-    OpCode::Not,  OpCode::Assert, OpCode::Noop, OpCode::Noop,
-    OpCode::Noop, OpCode::Noop,   OpCode::Noop, OpCode::Noop,
-    OpCode::Noop, OpCode::Noop,   OpCode::Noop, OpCode::Noop,
-    OpCode::Noop, OpCode::Noop,   OpCode::Noop
+    OpCode::Not,
+    OpCode::Assert,
+    OpCode::Noop,
+    OpCode::Noop,
+    OpCode::Noop,
+    OpCode::Noop,
+    OpCode::Noop,
+    OpCode::Noop,
+    OpCode::Noop,
+    OpCode::Noop,
+    OpCode::Noop,
+    OpCode::Noop,
+    OpCode::Noop,
+    OpCode::Noop,
+    OpCode::Noop,
 ];
 
 const LOOP_BLOCK_SUFFIX: [u8; 16] = [
-    OpCode::Not  as u8, OpCode::Assert as u8, OpCode::Noop as u8, OpCode::Noop as u8,
-    OpCode::Noop as u8, OpCode::Noop   as u8, OpCode::Noop as u8, OpCode::Noop as u8,
-    OpCode::Noop as u8, OpCode::Noop   as u8, OpCode::Noop as u8, OpCode::Noop as u8,
-    OpCode::Noop as u8, OpCode::Noop   as u8, OpCode::Noop as u8, OpCode::Noop as u8,
+    OpCode::Not as u8,
+    OpCode::Assert as u8,
+    OpCode::Noop as u8,
+    OpCode::Noop as u8,
+    OpCode::Noop as u8,
+    OpCode::Noop as u8,
+    OpCode::Noop as u8,
+    OpCode::Noop as u8,
+    OpCode::Noop as u8,
+    OpCode::Noop as u8,
+    OpCode::Noop as u8,
+    OpCode::Noop as u8,
+    OpCode::Noop as u8,
+    OpCode::Noop as u8,
+    OpCode::Noop as u8,
+    OpCode::Noop as u8,
 ];
 
 // TYPES AND INTERFACES
@@ -38,48 +61,46 @@ pub enum ProgramBlock {
 
 #[derive(Clone, Serialize, Deserialize)]
 pub struct Span {
-    op_codes    : Vec<OpCode>,
-    op_hints    : HashMap<usize, OpHint>,
+    op_codes: Vec<OpCode>,
+    op_hints: HashMap<usize, OpHint>,
 }
 
 #[derive(Clone, Serialize, Deserialize)]
 pub struct Group {
-    body        : Vec<ProgramBlock>,
+    body: Vec<ProgramBlock>,
 }
 
 #[derive(Clone, Serialize, Deserialize)]
 pub struct Switch {
-    t_branch    : Vec<ProgramBlock>,
-    f_branch    : Vec<ProgramBlock>,
+    t_branch: Vec<ProgramBlock>,
+    f_branch: Vec<ProgramBlock>,
 }
 
 #[derive(Clone, Serialize, Deserialize)]
 pub struct Loop {
-    body        : Vec<ProgramBlock>,
-    skip        : Vec<ProgramBlock>,
+    body: Vec<ProgramBlock>,
+    skip: Vec<ProgramBlock>,
 }
 
 // PROGRAM BLOCK IMPLEMENTATION
 // ================================================================================================
 
 impl ProgramBlock {
-
     pub fn is_span(&self) -> bool {
         return match self {
             ProgramBlock::Span(_) => true,
             _ => false,
         };
     }
-
 }
 
 impl sp_std::fmt::Debug for ProgramBlock {
     fn fmt(&self, f: &mut sp_std::fmt::Formatter<'_>) -> sp_std::fmt::Result {
         match self {
-            ProgramBlock::Span(block)   => write!(f, "{:?}", block)?,
-            ProgramBlock::Group(block)  => write!(f, "{:?}", block)?,
+            ProgramBlock::Span(block) => write!(f, "{:?}", block)?,
+            ProgramBlock::Group(block) => write!(f, "{:?}", block)?,
             ProgramBlock::Switch(block) => write!(f, "{:?}", block)?,
-            ProgramBlock::Loop(block)   => write!(f, "{:?}", block)?,
+            ProgramBlock::Loop(block) => write!(f, "{:?}", block)?,
         }
         return Ok(());
     }
@@ -88,36 +109,53 @@ impl sp_std::fmt::Debug for ProgramBlock {
 // SPAN IMPLEMENTATION
 // ================================================================================================
 impl Span {
-
     pub fn new(instructions: Vec<OpCode>, hints: HashMap<usize, OpHint>) -> Span {
         let alignment = instructions.len() % BASE_CYCLE_LENGTH;
-        assert!(alignment == BASE_CYCLE_LENGTH - 1,
+        assert!(
+            alignment == BASE_CYCLE_LENGTH - 1,
             "invalid number of instructions: expected one less than a multiple of {}, but was {}",
-            BASE_CYCLE_LENGTH, instructions.len());
+            BASE_CYCLE_LENGTH,
+            instructions.len()
+        );
 
         // make sure all instructions are valid
         for i in 0..instructions.len() {
             let op_code = instructions[i];
             if op_code == OpCode::Push {
-                assert!(i % 8 == 0, "PUSH is not allowed on step {}, must be on step which is a multiple of 8", i);
+                assert!(
+                    i % 8 == 0,
+                    "PUSH is not allowed on step {}, must be on step which is a multiple of 8",
+                    i
+                );
                 let hint = hints.get(&i);
-                assert!(hint.is_some(), "invalid PUSH operation on step {}: operation value is missing", i);
+                assert!(
+                    hint.is_some(),
+                    "invalid PUSH operation on step {}: operation value is missing",
+                    i
+                );
                 match hint.unwrap() {
                     OpHint::PushValue(_) => (),
-                    _ => panic!("invalid PUSH operation on step {}: operation value is of wrong type", i)
+                    _ => panic!(
+                        "invalid PUSH operation on step {}: operation value is of wrong type",
+                        i
+                    ),
                 }
             }
         }
 
         // make sure all hints are within bounds
         for &step in hints.keys() {
-            assert!(step < instructions.len(), "hint out of bounds: step must be smaller than {} but is {}",
-                instructions.len(), step);
+            assert!(
+                step < instructions.len(),
+                "hint out of bounds: step must be smaller than {} but is {}",
+                instructions.len(),
+                step
+            );
         }
 
         return Span {
             op_codes: instructions,
-            op_hints: hints
+            op_hints: hints,
         };
     }
 
@@ -144,7 +182,7 @@ impl Span {
     pub fn get_hint(&self, op_index: usize) -> OpHint {
         return match self.op_hints.get(&op_index) {
             Some(&hint) => hint,
-            None => OpHint::None
+            None => OpHint::None,
         };
     }
 
@@ -153,10 +191,11 @@ impl Span {
             let op_value = if op_code == OpCode::Push {
                 match self.get_hint(i) {
                     OpHint::PushValue(op_value) => op_value,
-                    _ => panic!("value for PUSH operation is missing")
+                    _ => panic!("value for PUSH operation is missing"),
                 }
-            }
-            else { 0 };
+            } else {
+                0
+            };
             hash_op(&mut state, op_code as u8, op_value, i)
         }
         return state;
@@ -196,7 +235,6 @@ impl sp_std::fmt::Debug for Span {
 // GROUP IMPLEMENTATION
 // ================================================================================================
 impl Group {
-
     pub fn new(body: Vec<ProgramBlock>) -> Group {
         validate_block_list(&body, &[]);
         return Group { body };
@@ -233,17 +271,19 @@ impl sp_std::fmt::Debug for Group {
 // SWITCH IMPLEMENTATION
 // ================================================================================================
 impl Switch {
-
     pub fn new(true_branch: Vec<ProgramBlock>, false_branch: Vec<ProgramBlock>) -> Switch {
         validate_block_list(&true_branch, &[OpCode::Assert]);
         validate_block_list(&false_branch, &[OpCode::Not, OpCode::Assert]);
         return Switch {
-            t_branch    : true_branch,
-            f_branch    : false_branch
+            t_branch: true_branch,
+            f_branch: false_branch,
         };
     }
 
-    pub fn new_block(true_branch: Vec<ProgramBlock>, false_branch: Vec<ProgramBlock>) -> ProgramBlock {
+    pub fn new_block(
+        true_branch: Vec<ProgramBlock>,
+        false_branch: Vec<ProgramBlock>,
+    ) -> ProgramBlock {
         return ProgramBlock::Switch(Switch::new(true_branch, false_branch));
     }
 
@@ -287,7 +327,6 @@ impl sp_std::fmt::Debug for Switch {
 // LOOP IMPLEMENTATION
 // ================================================================================================
 impl Loop {
-
     pub fn new(body: Vec<ProgramBlock>) -> Loop {
         validate_block_list(&body, &[OpCode::Assert]);
 
@@ -341,18 +380,22 @@ impl sp_std::fmt::Debug for Loop {
 // HELPER FUNCTIONS
 // ================================================================================================
 fn validate_block_list(blocks: &Vec<ProgramBlock>, starts_with: &[OpCode]) {
+    assert!(
+        blocks.len() > 0,
+        "a sequence of blocks must contain at least one block"
+    );
 
-    assert!(blocks.len() > 0, "a sequence of blocks must contain at least one block");
-    
     // first block must be a span block
     match &blocks[0] {
         ProgramBlock::Span(block) => {
             // if the block must start with a specific sequence of instructions, make sure it does
             if starts_with.len() > 0 {
-                assert!(block.starts_with(starts_with),
-                    "the first block does not start with a valid sequence of instructions");
+                assert!(
+                    block.starts_with(starts_with),
+                    "the first block does not start with a valid sequence of instructions"
+                );
             }
-        },
+        }
         _ => panic!("a sequence of blocks must start with a Span block"),
     };
 
@@ -361,8 +404,11 @@ fn validate_block_list(blocks: &Vec<ProgramBlock>, starts_with: &[OpCode]) {
     for i in 1..blocks.len() {
         match &blocks[i] {
             ProgramBlock::Span(_) => {
-                assert!(was_span == false, "a Span block cannot be followed by another Span block");
-            },
+                assert!(
+                    was_span == false,
+                    "a Span block cannot be followed by another Span block"
+                );
+            }
             _ => was_span = false,
         }
     }

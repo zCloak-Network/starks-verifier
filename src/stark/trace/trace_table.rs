@@ -1,21 +1,23 @@
-use crate::math::{ field, fft, polynom, parallel };
-use crate::crypto::{ MerkleTree, HashFunction };
-use crate::stark::{ CompositionCoefficients, utils };
-use crate::utils::{ uninit_vector, filled_vector, as_bytes };
-use super::{ TraceState };
+use super::TraceState;
+use crate::{
+    crypto::{HashFunction, MerkleTree},
+    math::{fft, field, parallel, polynom},
+    stark::{utils, CompositionCoefficients},
+    utils::{as_bytes, filled_vector, uninit_vector},
+};
+use serde::{Deserialize, Serialize};
 use sp_std::{vec, vec::Vec};
-use serde::{Serialize, Deserialize};
 
 // TYPES AND INTERFACES
 // ================================================================================================
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TraceTable {
-    registers       : Vec<Vec<u128>>,
-    polys           : Vec<Vec<u128>>,
-    ctx_depth       : usize,
-    loop_depth      : usize,
-    stack_depth     : usize,
-    trace_length    : usize,
+    registers: Vec<Vec<u128>>,
+    polys: Vec<Vec<u128>>,
+    ctx_depth: usize,
+    loop_depth: usize,
+    stack_depth: usize,
+    trace_length: usize,
     extension_factor: usize,
 }
 
@@ -23,40 +25,72 @@ pub struct TraceTable {
 // ================================================================================================
 impl TraceTable {
     /// Returns a trace table constructed from the specified register traces.
-    pub fn new(registers: Vec<Vec<u128>>, ctx_depth: usize, loop_depth: usize, extension_factor: usize) -> TraceTable
-    {
+    pub fn new(
+        registers: Vec<Vec<u128>>,
+        ctx_depth: usize,
+        loop_depth: usize,
+        extension_factor: usize,
+    ) -> TraceTable {
         // validate extension factor
-        assert!(extension_factor.is_power_of_two(), "trace extension factor must be a power of 2");
-        assert!(extension_factor >= crate::MIN_EXTENSION_FACTOR,
-            "extension factor must be at least {}", crate::MIN_EXTENSION_FACTOR);
+        assert!(
+            extension_factor.is_power_of_two(),
+            "trace extension factor must be a power of 2"
+        );
+        assert!(
+            extension_factor >= crate::MIN_EXTENSION_FACTOR,
+            "extension factor must be at least {}",
+            crate::MIN_EXTENSION_FACTOR
+        );
 
         // validate context depth
-        assert!(ctx_depth <= crate::MAX_CONTEXT_DEPTH,
-            "context depth cannot be greater than {}", crate::MAX_CONTEXT_DEPTH);
+        assert!(
+            ctx_depth <= crate::MAX_CONTEXT_DEPTH,
+            "context depth cannot be greater than {}",
+            crate::MAX_CONTEXT_DEPTH
+        );
 
         // validate loop depth
-        assert!(loop_depth <= crate::MAX_LOOP_DEPTH,
-            "loop depth cannot be greater than {}", crate::MAX_LOOP_DEPTH);
+        assert!(
+            loop_depth <= crate::MAX_LOOP_DEPTH,
+            "loop depth cannot be greater than {}",
+            crate::MAX_LOOP_DEPTH
+        );
 
         // compute stack depth
         let decoder_width = TraceState::compute_decoder_width(ctx_depth, loop_depth);
-        assert!(registers.len() > decoder_width, "user stack must consist of at least one register");
+        assert!(
+            registers.len() > decoder_width,
+            "user stack must consist of at least one register"
+        );
         let stack_depth = registers.len() - decoder_width;
 
         // validate register traces
-        assert!(registers.len() < crate::MAX_REGISTER_COUNT,
-            "execution trace cannot have more than {} registers", crate::MAX_REGISTER_COUNT);
+        assert!(
+            registers.len() < crate::MAX_REGISTER_COUNT,
+            "execution trace cannot have more than {} registers",
+            crate::MAX_REGISTER_COUNT
+        );
         let trace_length = registers[0].len();
-        assert!(trace_length.is_power_of_two(), "execution trace length must be a power of 2");
+        assert!(
+            trace_length.is_power_of_two(),
+            "execution trace length must be a power of 2"
+        );
         for register in registers.iter() {
-            assert!(register.len() == trace_length, "all register traces must have the same length");
+            assert!(
+                register.len() == trace_length,
+                "all register traces must have the same length"
+            );
         }
 
         let polys = Vec::with_capacity(registers.len());
         return TraceTable {
-            registers, polys,
-            ctx_depth, loop_depth, stack_depth,
-            trace_length, extension_factor
+            registers,
+            polys,
+            ctx_depth,
+            loop_depth,
+            stack_depth,
+            trace_length,
+            extension_factor,
         };
     }
 
@@ -71,8 +105,7 @@ impl TraceTable {
     pub fn get_last_state(&self) -> TraceState {
         let last_step = if self.is_extended() {
             self.domain_size() - self.extension_factor()
-        }
-        else {
+        } else {
             self.unextended_length() - 1
         };
         return self.get_state(last_step);
@@ -145,26 +178,28 @@ impl TraceTable {
     /// trace table construction. A trace table can be extended only once.
     pub fn extend(&mut self, twiddles: &[u128]) {
         assert!(!self.is_extended(), "trace table has already been extended");
-        assert!(twiddles.len() * 2 == self.domain_size(), "invalid number of twiddles");
+        assert!(
+            twiddles.len() * 2 == self.domain_size(),
+            "invalid number of twiddles"
+        );
 
         // build inverse twiddles needed for FFT interpolation
         let root = field::get_root_of_unity(self.unextended_length());
         let inv_twiddles = fft::get_inv_twiddles(root, self.unextended_length());
-        
+
         // move register traces into polys
         sp_std::mem::swap(&mut self.registers, &mut self.polys);
 
         // extend all registers
         let domain_size = self.domain_size();
         for poly in self.polys.iter_mut() {
-
             // interpolate register trace into a polynomial
             polynom::interpolate_fft_twiddles(poly, &inv_twiddles, true);
-            
+
             // allocate space to hold extended evaluations and copy the polynomial into it
             let mut register = vec![field::ZERO; domain_size];
             register[..poly.len()].copy_from_slice(&poly);
-            
+
             // evaluate the polynomial over extended domain
             polynom::eval_fft_twiddles(&mut register, &twiddles, true);
             self.registers.push(register);
@@ -202,15 +237,18 @@ impl TraceTable {
     /// Combines trace polynomials for all registers into a single composition polynomial.
     /// The combination is done as follows:
     /// 1. First, state of trace registers at deep points z and z * g are computed;
-    /// 2. Then, polynomials T1_i(x) = (T_i(x) - T_i(z)) / (x - z) and 
+    /// 2. Then, polynomials T1_i(x) = (T_i(x) - T_i(z)) / (x - z) and
     /// T2_i(x) = (T_i(x) - T_i(z * g)) / (x - z * g) are computed for all i and combined
     /// together into a single polynomial using a pseudo-random linear combination;
     /// 3. Then the degree of the polynomial is adjusted to match the specified degree
-    pub fn get_composition_poly(&self, z: u128, cc: &CompositionCoefficients) -> (Vec<u128>, Vec<u128>, Vec<u128>) {
-
+    pub fn get_composition_poly(
+        &self,
+        z: u128,
+        cc: &CompositionCoefficients,
+    ) -> (Vec<u128>, Vec<u128>, Vec<u128>) {
         let trace_length = self.unextended_length();
         assert!(self.is_extended(), "trace table has not been extended yet");
-        
+
         let g = field::get_root_of_unity(trace_length);
         let next_z = field::mul(z, g);
 
@@ -252,14 +290,16 @@ impl TraceTable {
             &mut composition_poly[..trace_length],
             &t1_composition,
             cc.t1_degree,
-            1);
+            1,
+        );
         // this is equivalent to T(x) * x^incremental_degree * k_2
         parallel::mul_acc(
             &mut composition_poly[incremental_degree..(incremental_degree + trace_length)],
             &t1_composition,
             cc.t2_degree,
-            1);
-        
+            1,
+        );
+
         return (composition_poly, trace_state1, trace_state2);
     }
 }
@@ -268,17 +308,21 @@ impl TraceTable {
 // ================================================================================================
 
 #[cfg(test)]
+#[ignore]
 mod tests {
 
-    use sp_std::collections::HashMap;
     use crate::{
-        math::{ field, polynom, parallel, fft },
         crypto::hash::blake3,
-        programs::{ Program, ProgramInputs, blocks::{ ProgramBlock, Span, Group } },
-        processor::{ execute, OpCode },
-        stark::{ TraceTable, CompositionCoefficients, utils::get_composition_degree }
+        math::{fft, field, parallel, polynom},
+        processor::{execute, OpCode},
+        programs::{
+            blocks::{Group, ProgramBlock, Span},
+            Program, ProgramInputs,
+        },
+        stark::{utils::get_composition_degree, CompositionCoefficients, TraceTable},
     };
-    
+    use sp_std::collections::HashMap;
+
     const EXT_FACTOR: usize = 32;
 
     #[test]
@@ -300,7 +344,6 @@ mod tests {
 
     #[test]
     fn get_composition_poly() {
-
         let mut trace = build_trace_table();
         let lde_root = field::get_root_of_unity(trace.domain_size());
         trace.extend(&fft::get_twiddles(lde_root, trace.domain_size()));
@@ -309,7 +352,7 @@ mod tests {
         let t_tree = trace.build_merkle_tree(blake3);
         let z = field::prng(*t_tree.root());
         let cc = CompositionCoefficients::new(*t_tree.root());
-        let target_degree =  get_composition_degree(trace.unextended_length());
+        let target_degree = get_composition_degree(trace.unextended_length());
 
         let g = field::get_root_of_unity(trace.unextended_length());
         let zg = field::mul(z, g);
@@ -367,14 +410,26 @@ mod tests {
 
     fn build_trace_table() -> TraceTable {
         let instructions = vec![
-            OpCode::Begin, OpCode::Swap, OpCode::Dup2, OpCode::Drop,
-            OpCode::Add,   OpCode::Swap, OpCode::Dup2, OpCode::Drop,
-            OpCode::Add,   OpCode::Swap, OpCode::Dup2, OpCode::Drop,
-            OpCode::Add,   OpCode::Noop, OpCode::Noop,
+            OpCode::Begin,
+            OpCode::Swap,
+            OpCode::Dup2,
+            OpCode::Drop,
+            OpCode::Add,
+            OpCode::Swap,
+            OpCode::Dup2,
+            OpCode::Drop,
+            OpCode::Add,
+            OpCode::Swap,
+            OpCode::Dup2,
+            OpCode::Drop,
+            OpCode::Add,
+            OpCode::Noop,
+            OpCode::Noop,
         ];
-        let program = Program::new(Group::new(vec![
-            ProgramBlock::Span(Span::new(instructions, HashMap::new()))
-        ]));
+        let program = Program::new(Group::new(vec![ProgramBlock::Span(Span::new(
+            instructions,
+            HashMap::new(),
+        ))]));
         let inputs = ProgramInputs::from_public(&[1, 0]);
         let (trace, ctx_depth, loop_depth) = execute(&program, &inputs);
         return TraceTable::new(trace, ctx_depth, loop_depth, EXT_FACTOR);

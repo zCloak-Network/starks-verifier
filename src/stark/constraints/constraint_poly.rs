@@ -1,23 +1,29 @@
-use crate::math::{ field, polynom, parallel };
-use crate::stark::{ MAX_CONSTRAINT_DEGREE, utils::CompositionCoefficients };
+use crate::{
+    math::{field, parallel, polynom},
+    stark::{utils::CompositionCoefficients, MAX_CONSTRAINT_DEGREE},
+};
 use sp_std::{vec, vec::Vec};
 
 // TYPES AND INTERFACES
 // ================================================================================================
 pub struct ConstraintPoly {
-    poly: Vec<u128>
+    poly: Vec<u128>,
 }
 
 // CONSTRAINT POLY IMPLEMENTATION
 // ================================================================================================
 impl ConstraintPoly {
     pub fn new(poly: Vec<u128>) -> ConstraintPoly {
-
-        assert!(poly.len().is_power_of_two(), "poly length must be a power of two");
-        debug_assert!(get_expected_degree(&poly) == polynom::degree_of(&poly),
+        assert!(
+            poly.len().is_power_of_two(),
+            "poly length must be a power of two"
+        );
+        debug_assert!(
+            get_expected_degree(&poly) == polynom::degree_of(&poly),
             "expected polynomial of degree {} but received degree {}",
             get_expected_degree(&poly),
-            polynom::degree_of(&poly));
+            polynom::degree_of(&poly)
+        );
 
         return ConstraintPoly { poly };
     }
@@ -28,7 +34,10 @@ impl ConstraintPoly {
 
     pub fn eval(&self, twiddles: &[u128]) -> Vec<u128> {
         let domain_size = twiddles.len() * 2;
-        assert!(domain_size > self.poly.len(), "domain size must be greater than poly length");
+        assert!(
+            domain_size > self.poly.len(),
+            "domain size must be greater than poly length"
+        );
 
         let mut evaluations = vec![field::ZERO; domain_size];
         evaluations[..self.poly.len()].copy_from_slice(&self.poly);
@@ -37,8 +46,12 @@ impl ConstraintPoly {
         return evaluations;
     }
 
-    pub fn merge_into(mut self, result: &mut Vec<u128>, z: u128, cc: &CompositionCoefficients) -> u128 {
-
+    pub fn merge_into(
+        mut self,
+        result: &mut Vec<u128>,
+        z: u128,
+        cc: &CompositionCoefficients,
+    ) -> u128 {
         // evaluate the polynomial at point z
         let z_value = polynom::eval(&self.poly, z);
 
@@ -51,7 +64,6 @@ impl ConstraintPoly {
 
         return z_value;
     }
-
 }
 
 // HELPER FUNCTIONS

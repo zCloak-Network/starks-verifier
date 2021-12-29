@@ -1,9 +1,8 @@
-use crate::utils::{ as_bytes };
-use crate::processor::{ OpCode };
-use super::{ Program, ProgramBlock, Span, Group, Switch, Loop };
+use super::{Group, Loop, Program, ProgramBlock, Span, Switch};
+use crate::{processor::OpCode, utils::as_bytes};
 
 mod utils;
-use utils::{ traverse, close_block };
+use utils::{close_block, traverse};
 
 // TESTS
 // ================================================================================================
@@ -32,7 +31,11 @@ fn linear_blocks() {
     let block3 = Group::new_block(vec![inner_block2]);
 
     // sequence of blocks ending with group block
-    let program = Program::new(Group::new(vec![block1.clone(), block2.clone(), block3.clone()]));
+    let program = Program::new(Group::new(vec![
+        block1.clone(),
+        block2.clone(),
+        block3.clone(),
+    ]));
     let mut program_hash = [0, 0, 0, 0];
     let step = traverse(program.root().body(), &mut vec![], &mut program_hash, 0);
     let step = close_block(&mut program_hash, 0, 0, true, step);
@@ -79,19 +82,41 @@ fn conditional_program() {
     let block1 = build_first_block(OpCode::Noop, 15);
 
     let t_branch = vec![Span::new_block(vec![
-        OpCode::Assert, OpCode::Add, OpCode::Add, OpCode::Add,
-        OpCode::Add,    OpCode::Add, OpCode::Add, OpCode::Add,
-        OpCode::Add,    OpCode::Add, OpCode::Add, OpCode::Add,
-        OpCode::Add,    OpCode::Add, OpCode::Add,
+        OpCode::Assert,
+        OpCode::Add,
+        OpCode::Add,
+        OpCode::Add,
+        OpCode::Add,
+        OpCode::Add,
+        OpCode::Add,
+        OpCode::Add,
+        OpCode::Add,
+        OpCode::Add,
+        OpCode::Add,
+        OpCode::Add,
+        OpCode::Add,
+        OpCode::Add,
+        OpCode::Add,
     ])];
     let f_branch = vec![Span::new_block(vec![
-        OpCode::Not, OpCode::Assert, OpCode::Mul, OpCode::Mul,
-        OpCode::Mul, OpCode::Mul,    OpCode::Mul, OpCode::Mul,
-        OpCode::Mul, OpCode::Mul,    OpCode::Mul, OpCode::Mul,
-        OpCode::Mul, OpCode::Mul,    OpCode::Mul,
+        OpCode::Not,
+        OpCode::Assert,
+        OpCode::Mul,
+        OpCode::Mul,
+        OpCode::Mul,
+        OpCode::Mul,
+        OpCode::Mul,
+        OpCode::Mul,
+        OpCode::Mul,
+        OpCode::Mul,
+        OpCode::Mul,
+        OpCode::Mul,
+        OpCode::Mul,
+        OpCode::Mul,
+        OpCode::Mul,
     ])];
     let block2 = Switch::new_block(t_branch, f_branch);
-    
+
     let program = Program::new(Group::new(vec![block1, block2]));
 
     // true branch execution
@@ -114,13 +139,24 @@ fn simple_loop() {
     let block1 = build_first_block(OpCode::Noop, 15);
 
     let loop_body = vec![Span::new_block(vec![
-        OpCode::Assert, OpCode::Add, OpCode::Add, OpCode::Add,
-        OpCode::Add,    OpCode::Add, OpCode::Add, OpCode::Add,
-        OpCode::Add,    OpCode::Add, OpCode::Add, OpCode::Add,
-        OpCode::Add,    OpCode::Add, OpCode::Add,
+        OpCode::Assert,
+        OpCode::Add,
+        OpCode::Add,
+        OpCode::Add,
+        OpCode::Add,
+        OpCode::Add,
+        OpCode::Add,
+        OpCode::Add,
+        OpCode::Add,
+        OpCode::Add,
+        OpCode::Add,
+        OpCode::Add,
+        OpCode::Add,
+        OpCode::Add,
+        OpCode::Add,
     ])];
     let block2 = Loop::new_block(loop_body);
-    
+
     let program = Program::new(Group::new(vec![block1, block2]));
 
     // loop not entered
@@ -139,7 +175,12 @@ fn simple_loop() {
 
     // loop executed 3 times
     let mut program_hash = [0, 0, 0, 0];
-    let step = traverse(program.root().body(), &mut vec![0, 1, 1, 1], &mut program_hash, 0);
+    let step = traverse(
+        program.root().body(),
+        &mut vec![0, 1, 1, 1],
+        &mut program_hash,
+        0,
+    );
     let step = close_block(&mut program_hash, 0, 0, true, step);
     assert_eq!(*program.hash(), hash_to_bytes(&program_hash));
     assert_eq!(111, step);

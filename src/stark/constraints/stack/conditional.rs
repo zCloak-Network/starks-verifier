@@ -1,7 +1,4 @@
-use super::{
-    field, 
-    are_equal, is_binary, binary_not, EvaluationResult, enforce_left_shift
-};
+use super::{are_equal, binary_not, enforce_left_shift, field, is_binary, EvaluationResult};
 
 // CONSTRAINT EVALUATORS
 // ================================================================================================
@@ -9,8 +6,13 @@ use super::{
 /// Enforces constraints for CHOOSE operation. These constraints work with top 3 registers of the
 /// stack and enforce that when condition = 1, x remains at the top of the stack; when
 /// condition = 0, y remains at the top of the stack. Otherwise the operation fails.
-pub fn enforce_choose(result: &mut [u128], aux: &mut [u128], old_stack: &[u128], new_stack: &[u128], op_flag: u128)
-{
+pub fn enforce_choose(
+    result: &mut [u128],
+    aux: &mut [u128],
+    old_stack: &[u128],
+    new_stack: &[u128],
+    op_flag: u128,
+) {
     let x = old_stack[0];
     let y = old_stack[1];
     let condition = old_stack[2];
@@ -22,7 +24,7 @@ pub fn enforce_choose(result: &mut [u128], aux: &mut [u128], old_stack: &[u128],
 
     // registers beyond the 3rd are shifted left by 2 slots
     enforce_left_shift(result, old_stack, new_stack, 3, 2, op_flag);
-    
+
     // make sure the condition was a binary value
     aux.agg_constraint(0, op_flag, is_binary(condition));
 }
@@ -30,8 +32,13 @@ pub fn enforce_choose(result: &mut [u128], aux: &mut [u128], old_stack: &[u128],
 /// Enforces constraints for CHOOSE2 operation. These constraints work with top 6 registers of
 /// the stack and enforce that when condition = 1, (x0, x1) remain at the top of the stack; when
 /// condition = 0, (y0, y1) remains at the top of the stack. Otherwise the operation fails.
-pub fn enforce_choose2(result: &mut [u128], aux: &mut [u128], old_stack: &[u128], new_stack: &[u128], op_flag: u128) 
-{
+pub fn enforce_choose2(
+    result: &mut [u128],
+    aux: &mut [u128],
+    old_stack: &[u128],
+    new_stack: &[u128],
+    op_flag: u128,
+) {
     let x0 = old_stack[0];
     let x1 = old_stack[1];
     let y0 = old_stack[2];
@@ -55,15 +62,19 @@ pub fn enforce_choose2(result: &mut [u128], aux: &mut [u128], old_stack: &[u128]
 
 /// Enforces constraints for CSWAP2 operation. These constraints work with top 6 registers of the
 /// stack and enforce that when condition = 1, (v2, v3) move to the top of the stack; when
-/// condition = 0, top 4 elements of the stack remain unchanged. 
-pub fn enforce_cswap2(result: &mut [u128], aux: &mut [u128], old_stack: &[u128], new_stack: &[u128], op_flag: u128) 
-{
+/// condition = 0, top 4 elements of the stack remain unchanged.
+pub fn enforce_cswap2(
+    result: &mut [u128],
+    aux: &mut [u128],
+    old_stack: &[u128],
+    new_stack: &[u128],
+    op_flag: u128,
+) {
     let v0 = old_stack[0];
     let v1 = old_stack[1];
     let v2 = old_stack[2];
     let v3 = old_stack[3];
     let condition = old_stack[4];
-
 
     let not_condition = binary_not(condition);
     let op_result0 = field::add(field::mul(condition, v2), field::mul(not_condition, v0));

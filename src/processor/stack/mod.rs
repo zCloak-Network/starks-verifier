@@ -1,8 +1,6 @@
 use crate::{
-    math::field,
-    utils::hasher,
-    ProgramInputs, OpCode, OpHint,
-    HASH_STATE_WIDTH, MIN_STACK_DEPTH, MAX_STACK_DEPTH,
+    math::field, utils::hasher, OpCode, OpHint, ProgramInputs, HASH_STATE_WIDTH, MAX_STACK_DEPTH,
+    MIN_STACK_DEPTH,
 };
 use sp_std::{vec, vec::Vec};
 
@@ -12,30 +10,28 @@ mod tests;
 // TYPES AND INTERFACES
 // ================================================================================================
 pub struct Stack {
-    registers   : Vec<Vec<u128>>,
-    tape_a      : Vec<u128>,
-    tape_b      : Vec<u128>,
-    max_depth   : usize,
-    depth       : usize,
-    step        : usize,
+    registers: Vec<Vec<u128>>,
+    tape_a: Vec<u128>,
+    tape_b: Vec<u128>,
+    max_depth: usize,
+    depth: usize,
+    step: usize,
 }
 
 // STACK IMPLEMENTATION
 // ================================================================================================
 impl Stack {
-
     /// Returns a new Stack with enough memory allocated for each register to hold trace lengths
     /// of `init_trace_length` steps. Register traces will be expanded dynamically if the number
     /// of actual steps exceeds this initial setting.
     pub fn new(inputs: &ProgramInputs, init_trace_length: usize) -> Stack {
-
         // allocate space for register traces and initialize the first state with public inputs
         let public_inputs = inputs.get_public_inputs();
         let init_stack_depth = sp_std::cmp::max(public_inputs.len(), MIN_STACK_DEPTH);
         let mut registers: Vec<Vec<u128>> = Vec::with_capacity(init_stack_depth);
         for i in 0..init_stack_depth {
             let mut register = vec![field::ZERO; init_trace_length];
-            if i < public_inputs.len() { 
+            if i < public_inputs.len() {
                 register[0] = public_inputs[i];
             }
             registers.push(register);
@@ -60,55 +56,55 @@ impl Stack {
 
     /// Executes `opcode` against the current state of the stack.
     pub fn execute(&mut self, op_code: OpCode, op_hint: OpHint) {
-
         // increment step pointer and make sure there is enough memory allocated to hold the trace
         self.advance_step();
 
         // execute the appropriate action against the current state of the stack
         match op_code {
+            OpCode::Begin => self.op_noop(),
+            OpCode::Noop => self.op_noop(),
 
-            OpCode::Begin       => self.op_noop(),
-            OpCode::Noop        => self.op_noop(),
+            OpCode::Assert => self.op_assert(),
+            OpCode::AssertEq => self.op_asserteq(),
 
-            OpCode::Assert      => self.op_assert(),
-            OpCode::AssertEq    => self.op_asserteq(),
+            OpCode::Push => self.op_push(op_hint),
+            OpCode::Read => self.op_read(op_hint),
+            OpCode::Read2 => self.op_read2(op_hint),
 
-            OpCode::Push        => self.op_push(op_hint),
-            OpCode::Read        => self.op_read(op_hint),
-            OpCode::Read2       => self.op_read2(op_hint),
+            OpCode::Dup => self.op_dup(),
+            OpCode::Dup2 => self.op_dup2(),
+            OpCode::Dup4 => self.op_dup4(),
+            OpCode::Pad2 => self.op_pad2(),
 
-            OpCode::Dup         => self.op_dup(),
-            OpCode::Dup2        => self.op_dup2(),
-            OpCode::Dup4        => self.op_dup4(),
-            OpCode::Pad2        => self.op_pad2(),
+            OpCode::Drop => self.op_drop(),
+            OpCode::Drop4 => self.op_drop4(),
 
-            OpCode::Drop        => self.op_drop(),
-            OpCode::Drop4       => self.op_drop4(),
+            OpCode::Swap => self.op_swap(),
+            OpCode::Swap2 => self.op_swap2(),
+            OpCode::Swap4 => self.op_swap4(),
 
-            OpCode::Swap        => self.op_swap(),
-            OpCode::Swap2       => self.op_swap2(),
-            OpCode::Swap4       => self.op_swap4(),
+            OpCode::Roll4 => self.op_roll4(),
+            OpCode::Roll8 => self.op_roll8(),
 
-            OpCode::Roll4       => self.op_roll4(),
-            OpCode::Roll8       => self.op_roll8(),
+            OpCode::Choose => self.op_choose(),
+            OpCode::Choose2 => self.op_choose2(),
+            OpCode::CSwap2 => self.op_cswap2(),
 
-            OpCode::Choose      => self.op_choose(),
-            OpCode::Choose2     => self.op_choose2(),
-            OpCode::CSwap2      => self.op_cswap2(),
+            OpCode::Add => self.op_add(),
+            OpCode::Mul => self.op_mul(),
+            OpCode::Inv => self.op_inv(),
+            OpCode::Neg => self.op_neg(),
+            OpCode::Not => self.op_not(),
+            OpCode::And => self.op_and(),
+            OpCode::Or => self.op_or(),
 
-            OpCode::Add         => self.op_add(),
-            OpCode::Mul         => self.op_mul(),
-            OpCode::Inv         => self.op_inv(),
-            OpCode::Neg         => self.op_neg(),
-            OpCode::Not         => self.op_not(),
-            OpCode::And         => self.op_and(),
-            OpCode::Or          => self.op_or(),
+            OpCode::Eq => self.op_eq(),
+            OpCode::Cmp => self.op_cmp(op_hint),
+            OpCode::BinAcc => self.op_binacc(op_hint),
 
-            OpCode::Eq          => self.op_eq(),
-            OpCode::Cmp         => self.op_cmp(op_hint),
-            OpCode::BinAcc      => self.op_binacc(op_hint),
-
-            OpCode::RescR       => self.op_rescr(),
+            OpCode::RescR => self.op_rescr(),
+            OpCode::Kvalid => self.op_kvalid(),
+            OpCode::Khash => self.op_khash(),
         }
     }
 
@@ -164,7 +160,13 @@ impl Stack {
         assert!(self.depth >= 2, "stack underflow at step {}", self.step);
         let x = self.registers[0][self.step - 1];
         let y = self.registers[1][self.step - 1];
-        assert!(x == y, "ASSERTEQ failed at step {},x = {:?},y={:?}", self.step,x,y);
+        assert!(
+            x == y,
+            "ASSERTEQ failed at step {},x = {:?},y={:?}",
+            self.step,
+            x,
+            y
+        );
         self.shift_left(2, 2);
     }
 
@@ -191,15 +193,18 @@ impl Stack {
                 let y = self.registers[1][self.step - 1];
                 if x == y {
                     self.tape_a.push(field::ONE);
-                }
-                else {
+                } else {
                     self.tape_a.push(field::inv(field::sub(x, y)));
                 }
-            },
+            }
             OpHint::None => {
-                assert!(self.tape_a.len() > 0, "1attempt to read from empty tape A at step {}", self.step);
-            },
-            _ => panic!("execution hint {:?} is not valid for READ operation", hint)
+                assert!(
+                    self.tape_a.len() > 0,
+                    "1attempt to read from empty tape A at step {}",
+                    self.step
+                );
+            }
+            _ => panic!("execution hint {:?} is not valid for READ operation", hint),
         }
 
         self.shift_right(0, 1);
@@ -214,8 +219,14 @@ impl Stack {
                 assert!(self.depth >= 3, "stack underflow at step {}", self.step);
 
                 let n = (n - 1) as usize;
-                assert!(self.tape_a.len() >= n, "too few items on tape A for pmpath macro");
-                assert!(self.tape_b.len() >= n, "too few items on tape B for pmpath macro");
+                assert!(
+                    self.tape_a.len() >= n,
+                    "too few items on tape A for pmpath macro"
+                );
+                assert!(
+                    self.tape_b.len() >= n,
+                    "too few items on tape B for pmpath macro"
+                );
 
                 let idx = self.registers[2][self.step - 1];
 
@@ -230,12 +241,20 @@ impl Stack {
                     self.tape_a.push((idx >> (n - i - 1)) & 1);
                     self.tape_a.push(v_a[i]);
                 }
-            },
+            }
             OpHint::None => {
-                assert!(self.tape_a.len() > 0, "2attempt to read from empty tape A at step {}", self.step);
-                assert!(self.tape_b.len() > 0, "3attempt to read from empty tape B at step {}", self.step);
-            },
-            _ => panic!("execution hint {:?} is not valid for READ2 operation", hint)
+                assert!(
+                    self.tape_a.len() > 0,
+                    "2attempt to read from empty tape A at step {}",
+                    self.step
+                );
+                assert!(
+                    self.tape_b.len() > 0,
+                    "3attempt to read from empty tape B at step {}",
+                    self.step
+                );
+            }
+            _ => panic!("execution hint {:?} is not valid for READ2 operation", hint),
         }
 
         self.shift_right(0, 2);
@@ -343,12 +362,14 @@ impl Stack {
         let condition = self.registers[2][self.step - 1];
         if condition == field::ONE {
             self.registers[0][self.step] = self.registers[0][self.step - 1];
-        }
-        else if condition == field::ZERO {
+        } else if condition == field::ZERO {
             self.registers[0][self.step] = self.registers[1][self.step - 1];
-        }
-        else {
-            assert!(false, "CHOOSE on a non-binary condition at step {}", self.step);
+        } else {
+            assert!(
+                false,
+                "CHOOSE on a non-binary condition at step {}",
+                self.step
+            );
         }
         self.shift_left(3, 2);
     }
@@ -359,13 +380,15 @@ impl Stack {
         if condition == field::ONE {
             self.registers[0][self.step] = self.registers[0][self.step - 1];
             self.registers[1][self.step] = self.registers[1][self.step - 1];
-        }
-        else if condition == field::ZERO {
+        } else if condition == field::ZERO {
             self.registers[0][self.step] = self.registers[2][self.step - 1];
             self.registers[1][self.step] = self.registers[3][self.step - 1];
-        }
-        else {
-            assert!(false, "CHOOSE2 on a non-binary condition at step {}", self.step);
+        } else {
+            assert!(
+                false,
+                "CHOOSE2 on a non-binary condition at step {}",
+                self.step
+            );
         }
         self.shift_left(6, 4);
     }
@@ -378,15 +401,17 @@ impl Stack {
             self.registers[1][self.step] = self.registers[1][self.step - 1];
             self.registers[2][self.step] = self.registers[2][self.step - 1];
             self.registers[3][self.step] = self.registers[3][self.step - 1];
-        }
-        else if condition == field::ONE {
+        } else if condition == field::ONE {
             self.registers[0][self.step] = self.registers[2][self.step - 1];
             self.registers[1][self.step] = self.registers[3][self.step - 1];
             self.registers[2][self.step] = self.registers[0][self.step - 1];
             self.registers[3][self.step] = self.registers[1][self.step - 1];
-        }
-        else {
-            assert!(false, "CSWAP2 on a non-binary condition at step {}", self.step);
+        } else {
+            assert!(
+                false,
+                "CSWAP2 on a non-binary condition at step {}",
+                self.step
+            );
         }
         self.shift_left(6, 2);
     }
@@ -412,7 +437,12 @@ impl Stack {
     fn op_inv(&mut self) {
         assert!(self.depth >= 1, "stack underflow at step {}", self.step);
         let x = self.registers[0][self.step - 1];
-        assert!(x != field::ZERO, "cannot compute INV of {} at step {}", field::ZERO, self.step);
+        assert!(
+            x != field::ZERO,
+            "cannot compute INV of {} at step {}",
+            field::ZERO,
+            self.step
+        );
         self.registers[0][self.step] = field::inv(x);
         self.copy_state(1);
     }
@@ -427,7 +457,11 @@ impl Stack {
     fn op_not(&mut self) {
         assert!(self.depth >= 1, "stack underflow at step {}", self.step);
         let x = self.registers[0][self.step - 1];
-        assert!(is_binary(x), "cannot compute NOT of a non-binary value at step {}", self.step);
+        assert!(
+            is_binary(x),
+            "cannot compute NOT of a non-binary value at step {}",
+            self.step
+        );
         self.registers[0][self.step] = field::sub(field::ONE, x);
         self.copy_state(1);
     }
@@ -436,10 +470,22 @@ impl Stack {
         assert!(self.depth >= 2, "stack underflow at step {}", self.step);
         let x = self.registers[0][self.step - 1];
         let y = self.registers[1][self.step - 1];
-        assert!(is_binary(x), "cannot compute AND for a non-binary value at step {}", self.step);
-        assert!(is_binary(y), "cannot compute AND for a non-binary value at step {}", self.step);
+        assert!(
+            is_binary(x),
+            "cannot compute AND for a non-binary value at step {}",
+            self.step
+        );
+        assert!(
+            is_binary(y),
+            "cannot compute AND for a non-binary value at step {}",
+            self.step
+        );
 
-        self.registers[0][self.step] = if x == field::ONE && y == field::ONE { field::ONE } else { field::ZERO };
+        self.registers[0][self.step] = if x == field::ONE && y == field::ONE {
+            field::ONE
+        } else {
+            field::ZERO
+        };
         self.shift_left(2, 1);
     }
 
@@ -447,13 +493,24 @@ impl Stack {
         assert!(self.depth >= 2, "stack underflow at step {}", self.step);
         let x = self.registers[0][self.step - 1];
         let y = self.registers[1][self.step - 1];
-        assert!(is_binary(x), "cannot compute OR for a non-binary value at step {}", self.step);
-        assert!(is_binary(y), "cannot compute OR for a non-binary value at step {}", self.step);
+        assert!(
+            is_binary(x),
+            "cannot compute OR for a non-binary value at step {}",
+            self.step
+        );
+        assert!(
+            is_binary(y),
+            "cannot compute OR for a non-binary value at step {}",
+            self.step
+        );
 
-        self.registers[0][self.step] = if x == field::ONE || y == field::ONE { field::ONE } else { field::ZERO };
+        self.registers[0][self.step] = if x == field::ONE || y == field::ONE {
+            field::ONE
+        } else {
+            field::ZERO
+        };
         self.shift_left(2, 1);
     }
-
 
     // COMPARISON OPERATIONS
     // --------------------------------------------------------------------------------------------
@@ -466,7 +523,11 @@ impl Stack {
             self.registers[0][self.step] = field::ONE;
         } else {
             let diff = field::sub(x, y);
-            assert!(aux == field::inv(diff), "invalid AUX value for EQ operation at step {}", self.step);
+            assert!(
+                aux == field::inv(diff),
+                "invalid AUX value for EQ operation at step {}",
+                self.step
+            );
             self.registers[0][self.step] = field::ZERO;
         }
         self.shift_left(3, 2);
@@ -485,22 +546,38 @@ impl Stack {
                     self.tape_a.push((a_val >> i) & 1);
                     self.tape_b.push((b_val >> i) & 1);
                 }
-            },
+            }
             OpHint::None => {
                 assert!(self.depth >= 8, "stack underflow at step {}", self.step);
-                assert!(self.tape_a.len() > 0, "4attempt to read from empty tape A at step {}", self.step);
-                assert!(self.tape_b.len() > 0, "5attempt to read from empty tape B at step {}", self.step);
-            },
-            _ => panic!("execution hint {:?} is not valid for CMP operation", hint)
+                assert!(
+                    self.tape_a.len() > 0,
+                    "4attempt to read from empty tape A at step {}",
+                    self.step
+                );
+                assert!(
+                    self.tape_b.len() > 0,
+                    "5attempt to read from empty tape B at step {}",
+                    self.step
+                );
+            }
+            _ => panic!("execution hint {:?} is not valid for CMP operation", hint),
         }
 
         // get next bits of a and b values from the tapes
         let a_bit = self.tape_a.pop().unwrap();
-        assert!(a_bit == field::ZERO || a_bit == field::ONE,
-            "expected binary input at step {} but received: {}", self.step, a_bit);
+        assert!(
+            a_bit == field::ZERO || a_bit == field::ONE,
+            "expected binary input at step {} but received: {}",
+            self.step,
+            a_bit
+        );
         let b_bit = self.tape_b.pop().unwrap();
-        assert!(b_bit == field::ZERO || b_bit == field::ONE,
-            "expected binary input at step {} but received: {}", self.step, b_bit);
+        assert!(
+            b_bit == field::ZERO || b_bit == field::ONE,
+            "expected binary input at step {} but received: {}",
+            self.step,
+            b_bit
+        );
 
         // determine which bit is greater
         let bit_gt = field::mul(a_bit, field::sub(field::ONE, b_bit));
@@ -508,12 +585,15 @@ impl Stack {
 
         // compute current power of 2 for binary decomposition
         let power_of_two = self.registers[0][self.step - 1];
-        assert!(power_of_two.is_power_of_two(),
-            "expected top of the stack at step {} to be a power of 2, but received {}", self.step, power_of_two);
+        assert!(
+            power_of_two.is_power_of_two(),
+            "expected top of the stack at step {} to be a power of 2, but received {}",
+            self.step,
+            power_of_two
+        );
         let next_power_of_two = if power_of_two == 1 {
             field::div(power_of_two, 2)
-        }
-        else {
+        } else {
             power_of_two >> 1
         };
 
@@ -529,8 +609,14 @@ impl Stack {
         self.registers[3][self.step] = not_set;
         self.registers[4][self.step] = field::add(gt, field::mul(bit_gt, not_set));
         self.registers[5][self.step] = field::add(lt, field::mul(bit_lt, not_set));
-        self.registers[6][self.step] = field::add(self.registers[6][self.step - 1], field::mul(b_bit, power_of_two));
-        self.registers[7][self.step] = field::add(self.registers[7][self.step - 1], field::mul(a_bit, power_of_two));
+        self.registers[6][self.step] = field::add(
+            self.registers[6][self.step - 1],
+            field::mul(b_bit, power_of_two),
+        );
+        self.registers[7][self.step] = field::add(
+            self.registers[7][self.step - 1],
+            field::mul(a_bit, power_of_two),
+        );
 
         self.copy_state(8);
     }
@@ -547,18 +633,29 @@ impl Stack {
                     // most significant bit is pushed first
                     self.tape_a.push((val >> (n - i - 1)) & 1);
                 }
-            },
+            }
             OpHint::None => {
                 assert!(self.depth >= 4, "stack underflow at step {}", self.step);
-                assert!(self.tape_a.len() > 0, "attempt to read from empty tape A at step {}", self.step);
-            },
-            _ => panic!("execution hint {:?} is not valid for BINACC operation", hint)
+                assert!(
+                    self.tape_a.len() > 0,
+                    "attempt to read from empty tape A at step {}",
+                    self.step
+                );
+            }
+            _ => panic!(
+                "execution hint {:?} is not valid for BINACC operation",
+                hint
+            ),
         }
 
         // get the next bit of the value from tape A
         let bit = self.tape_a.pop().unwrap();
-        assert!(bit == field::ZERO || bit == field::ONE,
-            "expected binary input at step {} but received: {}", self.step, bit);
+        assert!(
+            bit == field::ZERO || bit == field::ONE,
+            "expected binary input at step {} but received: {}",
+            self.step,
+            bit
+        );
 
         // compute current power of 2 for binary decomposition
         let power_of_two = self.registers[2][self.step - 1];
@@ -578,10 +675,68 @@ impl Stack {
         self.copy_state(4);
     }
 
+    // fn op_sha256(&mut self) {
+    // 	assert!(self.depth >= 2, "stack underflow at step {}", self.step);
+    // 	let x1 = self.registers[0][self.step - 1];
+    // 	let x2 = self.registers[1][self.step - 1];
+
+    // 	let y1 = self.registers[2][self.step - 1];
+    // 	let y2 = self.registers[3][self.step - 1];
+
+    // 	self.registers[0][self.step] = field::sha256_a(y1, y2, x1, x2);
+    // 	self.registers[1][self.step] = field::sha256_b(y1, y2, x1, x2);
+
+    // 	// self.registers[0][self.step] = field::sha256_a(x1, x2, y1, y2);
+    // 	// self.registers[1][self.step] = field::sha256_b(x1, x2, y1, y2);
+
+    // 	// self.shift_left(2, 1);
+    // 	self.copy_state(4);
+    // }
+    fn op_kvalid(&mut self) {
+        assert!(self.depth >= 2, "stack underflow at step {}", self.step);
+        let ascii = self.registers[8][self.step - 1];
+        let x1 = self.registers[7][self.step - 1];
+        let x2 = self.registers[6][self.step - 1];
+        let x3 = self.registers[5][self.step - 1];
+        let x4 = self.registers[4][self.step - 1];
+        let x5 = self.registers[3][self.step - 1];
+
+        let content = self.registers[2][self.step - 1];
+        let ctype_2 = self.registers[1][self.step - 1];
+        let ctype_1 = self.registers[0][self.step - 1];
+
+        self.registers[0][self.step] =
+            field::kvalid_a(x1, x2, x3, x4, x5, content, ctype_1, ctype_2, ascii);
+        self.registers[1][self.step] =
+            field::kvalid_b(x1, x2, x3, x4, x5, content, ctype_1, ctype_2, ascii);
+        assert!(
+            self.registers[0][self.step] != 0 && self.registers[1][self.step] != 0,
+            "kvalid error!!"
+        );
+
+        self.shift_left(9, 7);
+    }
+
+    fn op_khash(&mut self) {
+        let mut hash_in_khash: Vec<u128> = Vec::new();
+        let n = self.registers[0][self.step - 1] as u32;
+        for i in 0..n {
+            let k = (2 * (n - 1) - 2 * i) as usize;
+            hash_in_khash.push(self.registers[k + 1][self.step - 1]);
+            hash_in_khash.push(self.registers[k + 2][self.step - 1]);
+        }
+        self.registers[0][self.step] = field::khash_a(&hash_in_khash, n);
+        self.registers[1][self.step] = field::khash_b(&hash_in_khash, n);
+        self.shift_left((2 * n + 1) as usize, (2 * n - 1) as usize);
+    }
     // CRYPTOGRAPHIC OPERATIONS
     // --------------------------------------------------------------------------------------------
     fn op_rescr(&mut self) {
-        assert!(self.depth >= HASH_STATE_WIDTH, "stack underflow at step {}", self.step);
+        assert!(
+            self.depth >= HASH_STATE_WIDTH,
+            "stack underflow at step {}",
+            self.step
+        );
         let mut state = [
             self.registers[0][self.step - 1],
             self.registers[1][self.step - 1],
@@ -613,8 +768,12 @@ impl Stack {
     }
 
     fn shift_left(&mut self, start: usize, pos_count: usize) {
-        assert!(self.depth >= pos_count, "stack underflow at step {}", self.step);
-        
+        assert!(
+            self.depth >= pos_count,
+            "stack underflow at step {}",
+            self.step
+        );
+
         // shift all values by pos_count to the left
         for i in start..self.depth {
             self.registers[i - pos_count][self.step] = self.registers[i][self.step - 1];
@@ -630,9 +789,12 @@ impl Stack {
     }
 
     fn shift_right(&mut self, start: usize, pos_count: usize) {
-        
         self.depth += pos_count;
-        assert!(self.depth <= MAX_STACK_DEPTH, "stack overflow at step {}", self.step);
+        assert!(
+            self.depth <= MAX_STACK_DEPTH,
+            "stack overflow at step {}",
+            self.step
+        );
 
         if self.depth > self.max_depth {
             self.max_depth += pos_count;
@@ -660,7 +822,9 @@ impl Stack {
         // make sure there is enough memory allocated for register traces
         if self.step >= self.trace_length() {
             let new_length = self.trace_length() * 2;
-            for register in self.registers.iter_mut() { register.resize(new_length, field::ZERO); }
+            for register in self.registers.iter_mut() {
+                register.resize(new_length, field::ZERO);
+            }
         }
     }
 }

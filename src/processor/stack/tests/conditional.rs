@@ -1,4 +1,4 @@
-use super::{ init_stack, get_stack_state, OpCode, OpHint, TRACE_LENGTH };
+use super::{get_stack_state, init_stack, OpCode, OpHint, TRACE_LENGTH};
 
 // CHOOSE OPERATIONS
 // ================================================================================================

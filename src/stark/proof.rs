@@ -1,92 +1,93 @@
-use serde::{ Serialize, Deserialize };
-use crate::crypto::{ BatchMerkleProof };
-use crate::stark::{ fri::FriProof, TraceState, ProofOptions };
-use crate::utils::{ uninit_vector, as_bytes };
-use sp_std::vec::Vec;
+use crate::{
+    crypto::BatchMerkleProof,
+    stark::{fri::FriProof, ProofOptions, TraceState},
+    utils::{as_bytes, uninit_vector},
+};
 use alloc::string::String;
+use serde::{Deserialize, Serialize};
+use sp_std::vec::Vec;
 // TYPES AND INTERFACES
 // ================================================================================================
 
 // TODO: custom serialization should reduce size by 5% - 10%
 #[derive(Clone, Serialize, Deserialize)]
-pub struct GenOutput{
+pub struct GenOutput {
     pub stark_output: Vec<u128>,
     pub stark_proof: String,
 }
 
 #[derive(Clone, Serialize, Deserialize)]
-pub struct ProgramAssembly{
-    pub AssemblyLanguage:String,
-    pub programhash:String,
+pub struct ProgramAssembly {
+    pub AssemblyLanguage: String,
+    pub programhash: String,
 }
-
 
 #[derive(Clone, Serialize, Deserialize)]
 pub struct StarkProof {
-    trace_root          : [u8; 32],
-    trace_info          : TraceInfo,
-    trace_nodes         : Vec<Vec<[u8; 32]>>,
-    trace_evaluations   : Vec<Vec<u128>>,
-    constraint_root     : [u8; 32],
-    constraint_proof    : BatchMerkleProof,
-    deep_values         : DeepValues,
-    degree_proof        : FriProof,
-    pow_nonce           : u64,
-    options             : ProofOptions
+    trace_root: [u8; 32],
+    trace_info: TraceInfo,
+    trace_nodes: Vec<Vec<[u8; 32]>>,
+    trace_evaluations: Vec<Vec<u128>>,
+    constraint_root: [u8; 32],
+    constraint_proof: BatchMerkleProof,
+    deep_values: DeepValues,
+    degree_proof: FriProof,
+    pow_nonce: u64,
+    options: ProofOptions,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct DeepValues {
-    pub trace_at_z1     : Vec<u128>,
-    pub trace_at_z2     : Vec<u128>,
+    pub trace_at_z1: Vec<u128>,
+    pub trace_at_z2: Vec<u128>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct TraceInfo {
-    pub domain_depth    : u8,
-    pub ctx_depth       : u8,
-    pub loop_depth      : u8,
-    pub stack_depth     : u8,
-    pub op_count        : u32,
+    pub domain_depth: u8,
+    pub ctx_depth: u8,
+    pub loop_depth: u8,
+    pub stack_depth: u8,
+    pub op_count: u32,
 }
 
 // STARK PROOF IMPLEMENTATION
 // ================================================================================================
 impl StarkProof {
     pub fn new(
-        trace_root          : &[u8; 32],
-        trace_proof         : BatchMerkleProof,
-        trace_evaluations   : Vec<Vec<u128>>,
-        constraint_root     : &[u8; 32],
-        constraint_proof    : BatchMerkleProof,
-        deep_values         : DeepValues,
-        degree_proof        : FriProof,
-        pow_nonce           : u64,
-        op_count            : u128,
-        ctx_depth           : usize,
-        loop_depth          : usize,
-        stack_depth         : usize,
-        options             : &ProofOptions ) -> StarkProof
-    {
+        trace_root: &[u8; 32],
+        trace_proof: BatchMerkleProof,
+        trace_evaluations: Vec<Vec<u128>>,
+        constraint_root: &[u8; 32],
+        constraint_proof: BatchMerkleProof,
+        deep_values: DeepValues,
+        degree_proof: FriProof,
+        pow_nonce: u64,
+        op_count: u128,
+        ctx_depth: usize,
+        loop_depth: usize,
+        stack_depth: usize,
+        options: &ProofOptions,
+    ) -> StarkProof {
         let trace_info = TraceInfo {
-            domain_depth        : trace_proof.depth,
-            ctx_depth           : ctx_depth as u8,
-            loop_depth          : loop_depth as u8,
-            stack_depth         : stack_depth as u8,
-            op_count            : op_count as u32,
+            domain_depth: trace_proof.depth,
+            ctx_depth: ctx_depth as u8,
+            loop_depth: loop_depth as u8,
+            stack_depth: stack_depth as u8,
+            op_count: op_count as u32,
         };
 
         return StarkProof {
-            trace_root          : *trace_root,
-            trace_info          : trace_info,
-            trace_nodes         : trace_proof.nodes,
-            trace_evaluations   : trace_evaluations,
-            constraint_root     : *constraint_root,
-            constraint_proof    : constraint_proof,
-            deep_values         : deep_values,
-            degree_proof        : degree_proof,
-            pow_nonce           : pow_nonce,
-            options             : options.clone()
+            trace_root: *trace_root,
+            trace_info,
+            trace_nodes: trace_proof.nodes,
+            trace_evaluations,
+            constraint_root: *constraint_root,
+            constraint_proof,
+            deep_values,
+            degree_proof,
+            pow_nonce,
+            options: options.clone(),
         };
     }
 
@@ -103,7 +104,6 @@ impl StarkProof {
     }
 
     pub fn trace_proof(&self) -> BatchMerkleProof {
-
         let hash = self.options.hash_fn();
         let mut hashed_states = uninit_vector::<[u8; 32]>(self.trace_evaluations.len());
         for i in 0..self.trace_evaluations.len() {
@@ -111,10 +111,10 @@ impl StarkProof {
         }
 
         return BatchMerkleProof {
-            nodes   : self.trace_nodes.clone(),
-            values  : hashed_states,
-            depth   : self.trace_info.domain_depth,
-         };
+            nodes: self.trace_nodes.clone(),
+            values: hashed_states,
+            depth: self.trace_info.domain_depth,
+        };
     }
 
     pub fn constraint_root(&self) -> &[u8; 32] {
@@ -166,7 +166,8 @@ impl StarkProof {
             self.ctx_depth(),
             self.loop_depth(),
             self.stack_depth(),
-            &self.deep_values.trace_at_z1);
+            &self.deep_values.trace_at_z1,
+        );
     }
 
     pub fn get_state_at_z2(&self) -> TraceState {
@@ -174,6 +175,7 @@ impl StarkProof {
             self.ctx_depth(),
             self.loop_depth(),
             self.stack_depth(),
-            &self.deep_values.trace_at_z2);
+            &self.deep_values.trace_at_z2,
+        );
     }
 }

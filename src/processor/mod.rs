@@ -1,7 +1,10 @@
 use crate::{
     math::field,
-    programs::{ Program, ProgramInputs, blocks::{ ProgramBlock, Span, Loop } },
-    MIN_TRACE_LENGTH, HACC_NUM_ROUNDS,
+    programs::{
+        blocks::{Loop, ProgramBlock, Span},
+        Program, ProgramInputs,
+    },
+    HACC_NUM_ROUNDS, MIN_TRACE_LENGTH,
 };
 use sp_std::vec::Vec;
 
@@ -9,20 +12,19 @@ use sp_std::vec::Vec;
 // ================================================================================================
 
 mod decoder;
-pub use decoder::{ Decoder };
+pub use decoder::Decoder;
 
 mod stack;
-pub use stack::{ Stack };
+pub use stack::Stack;
 
 pub mod opcodes;
-pub use opcodes::{ UserOps as OpCode, OpHint };
+pub use opcodes::{OpHint, UserOps as OpCode};
 
 // PUBLIC FUNCTIONS
 // ================================================================================================
 
 /// Returns register traces resulting from executing the `program` against the specified inputs.
-pub fn execute(program: &Program, inputs: &ProgramInputs) -> (Vec<Vec<u128>>, usize, usize)
-{
+pub fn execute(program: &Program, inputs: &ProgramInputs) -> (Vec<Vec<u128>>, usize, usize) {
     // initialize decoder and stack components
     let mut decoder = Decoder::new(MIN_TRACE_LENGTH);
     let mut stack = Stack::new(inputs, MIN_TRACE_LENGTH);
@@ -48,16 +50,11 @@ pub fn execute(program: &Program, inputs: &ProgramInputs) -> (Vec<Vec<u128>>, us
 
 // HELPER FUNCTIONS
 // ================================================================================================
-fn execute_blocks(blocks: &[ProgramBlock], decoder: &mut Decoder, stack: &mut Stack)
-{
+fn execute_blocks(blocks: &[ProgramBlock], decoder: &mut Decoder, stack: &mut Stack) {
     // execute first block in the sequence, which mast be a Span block
 
     match &blocks[0] {
-        ProgramBlock::Span(block) => {
-
-            execute_span(block, decoder, stack, true)
-        
-        },
+        ProgramBlock::Span(block) => execute_span(block, decoder, stack, true),
 
         _ => panic!("first block in a sequence must be a Span block"),
     }
@@ -70,7 +67,7 @@ fn execute_blocks(blocks: &[ProgramBlock], decoder: &mut Decoder, stack: &mut St
                 start_block(decoder, stack);
                 execute_blocks(block.body(), decoder, stack);
                 close_block(decoder, stack, field::ZERO, true);
-            },
+            }
             ProgramBlock::Switch(block) => {
                 start_block(decoder, stack);
                 let condition = stack.get_stack_top();
@@ -78,14 +75,17 @@ fn execute_blocks(blocks: &[ProgramBlock], decoder: &mut Decoder, stack: &mut St
                     0 => {
                         execute_blocks(block.false_branch(), decoder, stack);
                         close_block(decoder, stack, block.true_branch_hash(), false);
-                    },
+                    }
                     1 => {
                         execute_blocks(block.true_branch(), decoder, stack);
                         close_block(decoder, stack, block.false_branch_hash(), true);
-                    },
-                    _ => panic!("cannot select a branch based on a non-binary condition {}", condition)
+                    }
+                    _ => panic!(
+                        "cannot select a branch based on a non-binary condition {}",
+                        condition
+                    ),
                 };
-            },
+            }
             ProgramBlock::Loop(block) => {
                 let condition = stack.get_stack_top();
                 match condition {
@@ -93,18 +93,20 @@ fn execute_blocks(blocks: &[ProgramBlock], decoder: &mut Decoder, stack: &mut St
                         start_block(decoder, stack);
                         execute_blocks(block.skip(), decoder, stack);
                         close_block(decoder, stack, block.body_hash(), false);
-                    },
+                    }
                     1 => execute_loop(block, decoder, stack),
-                    _ => panic!("cannot enter loop based on a non-binary condition {}", condition)
+                    _ => panic!(
+                        "cannot enter loop based on a non-binary condition {}",
+                        condition
+                    ),
                 }
-            },
+            }
         }
     }
 }
 
 /// Executes all instructions in a Span block.
-fn execute_span(block: &Span, decoder: &mut Decoder, stack: &mut Stack, is_first: bool)
-{
+fn execute_span(block: &Span, decoder: &mut Decoder, stack: &mut Stack, is_first: bool) {
     // if this is the first Span block in a sequence of blocks, it needs to be
     // pre-padded with a NOOP to make sure the first instruction in the block
     // starts executing on a step which is a multiple of 16
@@ -119,20 +121,17 @@ fn execute_span(block: &Span, decoder: &mut Decoder, stack: &mut Stack, is_first
         decoder.decode_op(op_code, op_hint.value());
 
         stack.execute(op_code, op_hint);
-
     }
 }
 
 /// Starts executing a new program block.
-fn start_block(decoder: &mut Decoder, stack: &mut Stack)
-{
+fn start_block(decoder: &mut Decoder, stack: &mut Stack) {
     decoder.start_block();
     stack.execute(OpCode::Noop, OpHint::None);
 }
 
 /// Closes the currently executing program block.
-fn close_block(decoder: &mut Decoder, stack: &mut Stack, sibling_hash: u128, is_true_branch: bool)
-{
+fn close_block(decoder: &mut Decoder, stack: &mut Stack, sibling_hash: u128, is_true_branch: bool) {
     // a sequence of blocks always ends on a step which is one less than a multiple of 16;
     // all sequences end one operation short of multiple of 16 - so, we need to pad them
     // with a single NOOP ensure proper alignment
@@ -152,8 +151,7 @@ fn close_block(decoder: &mut Decoder, stack: &mut Stack, sibling_hash: u128, is_
 }
 
 /// Executes the specified loop.
-fn execute_loop(block: &Loop, decoder: &mut Decoder, stack: &mut Stack)
-{
+fn execute_loop(block: &Loop, decoder: &mut Decoder, stack: &mut Stack) {
     // mark the beginning of the loop block
     decoder.start_loop(block.image());
     stack.execute(OpCode::Noop, OpHint::None);
@@ -168,12 +166,15 @@ fn execute_loop(block: &Loop, decoder: &mut Decoder, stack: &mut Stack)
                 decoder.break_loop();
                 stack.execute(OpCode::Noop, OpHint::None);
                 break;
-            },
+            }
             1 => {
                 decoder.wrap_loop();
                 stack.execute(OpCode::Noop, OpHint::None);
-            },
-            _ => panic!("cannot exit loop based on a non-binary condition {}", condition)
+            }
+            _ => panic!(
+                "cannot exit loop based on a non-binary condition {}",
+                condition
+            ),
         };
     }
 
@@ -193,8 +194,8 @@ fn execute_loop(block: &Loop, decoder: &mut Decoder, stack: &mut Stack)
 #[cfg(test)]
 mod tests {
 
-    use crate::{ programs::assembly, stark::TraceState, utils::as_bytes };
-    use super::{ ProgramInputs };
+    use super::ProgramInputs;
+    use crate::{programs::assembly, stark::TraceState, utils::as_bytes};
 
     #[test]
     fn execute_span() {
@@ -206,7 +207,7 @@ mod tests {
 
         assert_eq!(64, trace_length);
         assert_eq!(17, trace.len());
-        let mut state = build_trace_state(trace.len(), ctx_depth, loop_depth) ;
+        let mut state = build_trace_state(trace.len(), ctx_depth, loop_depth);
         state.update_from_trace(&trace, trace_length - 1);
 
         assert_eq!(46, state.op_counter());
@@ -229,9 +230,9 @@ mod tests {
         assert_eq!(64, trace_length);
         assert_eq!(18, trace.len());
 
-        let mut state = build_trace_state(trace.len(), ctx_depth, loop_depth) ;
+        let mut state = build_trace_state(trace.len(), ctx_depth, loop_depth);
         state.update_from_trace(&trace, trace_length - 1);
-        
+
         assert_eq!(60, state.op_counter());
         assert_eq!(program.hash(), as_bytes(state.program_hash()));
         assert_eq!([1, 1, 1], state.cf_op_bits());
@@ -244,9 +245,10 @@ mod tests {
 
     #[test]
     fn execute_if_else() {
-        let program = assembly::compile(
-            "begin read if.true add push.3 else push.7 add push.8 end mul end").unwrap();
-        
+        let program =
+            assembly::compile("begin read if.true add push.3 else push.7 add push.8 end mul end")
+                .unwrap();
+
         // execute true branch
         let inputs = ProgramInputs::new(&[5, 3], &[1], &[]);
         let (trace, ctx_depth, loop_depth) = super::execute(&program, &inputs);
@@ -255,7 +257,7 @@ mod tests {
         assert_eq!(128, trace_length);
         assert_eq!(19, trace.len());
 
-        let mut state = build_trace_state(trace.len(), ctx_depth, loop_depth) ;
+        let mut state = build_trace_state(trace.len(), ctx_depth, loop_depth);
         state.update_from_trace(&trace, trace_length - 1);
 
         assert_eq!(76, state.op_counter());
@@ -275,7 +277,7 @@ mod tests {
         assert_eq!(128, trace_length);
         assert_eq!(19, trace.len());
 
-        let mut state = build_trace_state(trace.len(), ctx_depth, loop_depth) ;
+        let mut state = build_trace_state(trace.len(), ctx_depth, loop_depth);
         state.update_from_trace(&trace, trace_length - 1);
 
         assert_eq!(92, state.op_counter());
@@ -290,8 +292,7 @@ mod tests {
 
     #[test]
     fn execute_loop() {
-        let program = assembly::compile(
-            "begin mul read while.true dup mul read end end").unwrap();
+        let program = assembly::compile("begin mul read while.true dup mul read end end").unwrap();
 
         // don't enter the loop
         let inputs = ProgramInputs::new(&[5, 3], &[0], &[]);
@@ -301,7 +302,7 @@ mod tests {
         assert_eq!(64, trace_length);
         assert_eq!(18, trace.len());
 
-        let mut state = build_trace_state(trace.len(), ctx_depth, loop_depth) ;
+        let mut state = build_trace_state(trace.len(), ctx_depth, loop_depth);
         state.update_from_trace(&trace, trace_length - 1);
 
         assert_eq!(60, state.op_counter());
@@ -321,7 +322,7 @@ mod tests {
         assert_eq!(128, trace_length);
         assert_eq!(19, trace.len());
 
-        let mut state = build_trace_state(trace.len(), ctx_depth, loop_depth) ;
+        let mut state = build_trace_state(trace.len(), ctx_depth, loop_depth);
         state.update_from_trace(&trace, trace_length - 1);
 
         assert_eq!(75, state.op_counter());
@@ -341,7 +342,7 @@ mod tests {
         assert_eq!(256, trace_length);
         assert_eq!(19, trace.len());
 
-        let mut state = build_trace_state(trace.len(), ctx_depth, loop_depth) ;
+        let mut state = build_trace_state(trace.len(), ctx_depth, loop_depth);
         state.update_from_trace(&trace, trace_length - 1);
 
         assert_eq!(135, state.op_counter());
@@ -351,7 +352,10 @@ mod tests {
         assert_eq!([1, 1], state.hd_op_bits());
         assert_eq!([0], state.ctx_stack());
         assert_eq!([0], state.loop_stack());
-        assert_eq!([43143988327398919500410556793212890625, 0, 0, 0, 0, 0, 0, 0], state.user_stack());
+        assert_eq!(
+            [43143988327398919500410556793212890625, 0, 0, 0, 0, 0, 0, 0],
+            state.user_stack()
+        );
     }
 
     fn build_trace_state(num_registers: usize, ctx_depth: usize, loop_depth: usize) -> TraceState {

@@ -1,36 +1,45 @@
 use super::{
-    field, 
-    are_equal, is_zero, is_binary, binary_not, EvaluationResult,
-    enforce_left_shift, enforce_stack_copy,
+    are_equal, binary_not, enforce_left_shift, enforce_stack_copy, field, is_binary, is_zero,
+    EvaluationResult,
 };
 
 // CONSTANTS
 // ================================================================================================
 
-const POW2_IDX      : usize = 0;
-const X_BIT_IDX     : usize = 1;
-const Y_BIT_IDX     : usize = 2;
-const NOT_SET_IDX   : usize = 3;
-const GT_IDX        : usize = 4;
-const LT_IDX        : usize = 5;
-const Y_ACC_IDX     : usize = 6;
-const X_ACC_IDX     : usize = 7;
+const POW2_IDX: usize = 0;
+const X_BIT_IDX: usize = 1;
+const Y_BIT_IDX: usize = 2;
+const NOT_SET_IDX: usize = 3;
+const GT_IDX: usize = 4;
+const LT_IDX: usize = 5;
+const Y_ACC_IDX: usize = 6;
+const X_ACC_IDX: usize = 7;
 
 // ASSERTIONS
 // ================================================================================================
 
 /// Enforces constraints for ASSERT operation. The constraints are similar to DROP operation, but
 /// have an auxiliary constraint which enforces that 1 - x = 0, where x is the top of the stack.
-pub fn enforce_assert(result: &mut [u128], aux: &mut [u128], old_stack: &[u128], new_stack: &[u128], op_flag: u128)
-{
+pub fn enforce_assert(
+    result: &mut [u128],
+    aux: &mut [u128],
+    old_stack: &[u128],
+    new_stack: &[u128],
+    op_flag: u128,
+) {
     enforce_left_shift(result, old_stack, new_stack, 1, 1, op_flag);
     aux.agg_constraint(0, op_flag, are_equal(field::ONE, old_stack[0]));
 }
 
 /// Enforces constraints for ASSERTEQ operation. The stack is shifted by 2 registers the left and
 /// an auxiliary constraint enforces that the first element of the stack is equal to the second.
-pub fn enforce_asserteq(result: &mut [u128], aux: &mut [u128], old_stack: &[u128], new_stack: &[u128], op_flag: u128)
-{
+pub fn enforce_asserteq(
+    result: &mut [u128],
+    aux: &mut [u128],
+    old_stack: &[u128],
+    new_stack: &[u128],
+    op_flag: u128,
+) {
     enforce_left_shift(result, old_stack, new_stack, 2, 2, op_flag);
     aux.agg_constraint(0, op_flag, are_equal(old_stack[0], old_stack[1]));
 }
@@ -40,8 +49,13 @@ pub fn enforce_asserteq(result: &mut [u128], aux: &mut [u128], old_stack: &[u128
 
 /// Evaluates constraints for EQ operation. These enforce that when x == y, top of the stack at
 /// the next step is set to 1, otherwise top of the stack at the next step is set to 0.
-pub fn enforce_eq(result: &mut [u128], aux: &mut [u128], old_stack: &[u128], new_stack: &[u128], op_flag: u128)
-{
+pub fn enforce_eq(
+    result: &mut [u128],
+    aux: &mut [u128],
+    old_stack: &[u128],
+    new_stack: &[u128],
+    op_flag: u128,
+) {
     // compute difference between top two values of the stack
     let x = old_stack[1];
     let y = old_stack[2];
@@ -66,8 +80,7 @@ pub fn enforce_eq(result: &mut [u128], aux: &mut [u128], old_stack: &[u128], new
 // ================================================================================================
 
 /// Evaluates constraints for CMP operation.
-pub fn enforce_cmp(result: &mut [u128], old_stack: &[u128], new_stack: &[u128], op_flag: u128)
-{
+pub fn enforce_cmp(result: &mut [u128], old_stack: &[u128], new_stack: &[u128], op_flag: u128) {
     // layout of first 8 registers
     // [pow, bit_a, bit_b, not_set, gt, lt, acc_b, acc_a]
 
@@ -107,8 +120,7 @@ pub fn enforce_cmp(result: &mut [u128], old_stack: &[u128], new_stack: &[u128], 
 }
 
 /// Evaluates constraints for BINACC operation.
-pub fn enforce_binacc(result: &mut [u128], old_stack: &[u128], new_stack: &[u128], op_flag: u128)
-{
+pub fn enforce_binacc(result: &mut [u128], old_stack: &[u128], new_stack: &[u128], op_flag: u128) {
     // layout of first 4 registers:
     // [value bit, 0, power of two, accumulated value]
     // value bit is located in the next state (not current state)

@@ -1,23 +1,24 @@
+use crate::{
+    crypto::{BatchMerkleProof, MerkleTree},
+    math::{field, polynom, quartic},
+    stark::ProofOptions,
+};
 use sp_std::mem;
-use crate::math::{ field, polynom, quartic };
-use crate::crypto::{ MerkleTree, BatchMerkleProof };
-use crate::stark::{ ProofOptions };
 
-use super::{ FriProof, FriLayer, utils };
-use sp_std::vec::Vec;
+use super::{utils, FriLayer, FriProof};
 use alloc::string::String;
+use sp_std::vec::Vec;
 
 // VERIFIER
 // ================================================================================================
 
 pub fn verify(
-    proof       : &FriProof,
-    evaluations : &[u128],
-    positions   : &[usize],
-    max_degree  : usize,
-    options     : &ProofOptions) -> Result<bool, String>
-{
-
+    proof: &FriProof,
+    evaluations: &[u128],
+    positions: &[usize],
+    max_degree: usize,
+    options: &ProofOptions,
+) -> Result<bool, String> {
     let domain_size = usize::pow(2, proof.layers[0].depth as u32) * 4;
     let domain_root = field::get_root_of_unity(domain_size);
 
@@ -37,17 +38,28 @@ pub fn verify(
     let mut evaluations = evaluations.to_vec();
 
     for (depth, layer) in proof.layers.iter().enumerate() {
-
         let mut augmented_positions = utils::get_augmented_positions(&positions, domain_size);
-        let column_values = get_column_values(&layer.values, &positions, &augmented_positions, domain_size);
+        let column_values =
+            get_column_values(&layer.values, &positions, &augmented_positions, domain_size);
         if evaluations != column_values {
-            return Err(format!("evaluations did not match column value at depth {}", depth));
+            return Err(format!(
+                "evaluations did not match column value at depth {}",
+                depth
+            ));
         }
 
         // verify Merkle proof for the layer
         let merkle_proof = build_layer_merkle_proof(&layer, options);
-        if !MerkleTree::verify_batch(&layer.root, &augmented_positions, &merkle_proof, options.hash_fn()) {
-            return Err(format!("verification of Merkle proof failed at layer {}", depth));
+        if !MerkleTree::verify_batch(
+            &layer.root,
+            &augmented_positions,
+            &merkle_proof,
+            options.hash_fn(),
+        ) {
+            return Err(format!(
+                "verification of Merkle proof failed at layer {}",
+                depth
+            ));
         }
 
         // build a set of x for each row polynomial
@@ -58,7 +70,7 @@ pub fn verify(
                 field::mul(quartic_roots[0], xe),
                 field::mul(quartic_roots[1], xe),
                 field::mul(quartic_roots[2], xe),
-                field::mul(quartic_roots[3], xe)
+                field::mul(quartic_roots[3], xe),
             ]);
         }
 
@@ -79,20 +91,34 @@ pub fn verify(
     }
 
     // 2 ----- verify the remainder of the FRI proof ----------------------------------------------
-    
+
     for (&position, evaluation) in positions.iter().zip(evaluations) {
         if proof.rem_values[position] != evaluation {
-            return Err(String::from("remainder values are inconsistent with values of the last column"));
+            return Err(String::from(
+                "remainder values are inconsistent with values of the last column",
+            ));
         }
     }
 
     // make sure the remainder values satisfy the degree
-    return verify_remainder(&proof.rem_values, max_degree_plus_1, domain_root, options.extension_factor());
+    return verify_remainder(
+        &proof.rem_values,
+        max_degree_plus_1,
+        domain_root,
+        options.extension_factor(),
+    );
 }
 
-fn verify_remainder(remainder: &[u128], max_degree_plus_1: usize, domain_root: u128, extension_factor: usize) -> Result<bool, String> {
+fn verify_remainder(
+    remainder: &[u128],
+    max_degree_plus_1: usize,
+    domain_root: u128,
+    extension_factor: usize,
+) -> Result<bool, String> {
     if max_degree_plus_1 > remainder.len() {
-        return Err(String::from("remainder degree is greater than number of remainder values"));
+        return Err(String::from(
+            "remainder degree is greater than number of remainder values",
+        ));
     }
 
     // exclude points which should be skipped during evaluation
@@ -118,7 +144,10 @@ fn verify_remainder(remainder: &[u128], max_degree_plus_1: usize, domain_root: u
     for i in max_degree_plus_1..positions.len() {
         let p = positions[i];
         if polynom::eval(&poly, domain[p]) != remainder[p] {
-            return Err(format!("remainder is not a valid degree {} polynomial", max_degree_plus_1 - 1));
+            return Err(format!(
+                "remainder is not a valid degree {} polynomial",
+                max_degree_plus_1 - 1
+            ));
         }
     }
 
@@ -127,12 +156,20 @@ fn verify_remainder(remainder: &[u128], max_degree_plus_1: usize, domain_root: u
 
 // HELPER FUNCTIONS
 // ================================================================================================
-fn get_column_values(values: &Vec<[u128; 4]>, positions: &[usize], augmented_positions: &[usize], column_length: usize) -> Vec<u128> {
+fn get_column_values(
+    values: &Vec<[u128; 4]>,
+    positions: &[usize],
+    augmented_positions: &[usize],
+    column_length: usize,
+) -> Vec<u128> {
     let row_length = column_length / 4;
 
     let mut result = Vec::new();
     for position in positions {
-        let idx = augmented_positions.iter().position(|&v| v == position % row_length).unwrap();
+        let idx = augmented_positions
+            .iter()
+            .position(|&v| v == position % row_length)
+            .unwrap();
         let value = values[idx][position / row_length];
         result.push(value);
     }
@@ -142,9 +179,9 @@ fn get_column_values(values: &Vec<[u128; 4]>, positions: &[usize], augmented_pos
 
 fn build_layer_merkle_proof(layer: &FriLayer, options: &ProofOptions) -> BatchMerkleProof {
     return BatchMerkleProof {
-        values  : utils::hash_values(&layer.values, options.hash_fn()),
-        nodes   : layer.nodes.clone(),
-        depth   : layer.depth
+        values: utils::hash_values(&layer.values, options.hash_fn()),
+        nodes: layer.nodes.clone(),
+        depth: layer.depth,
     };
 }
 
@@ -152,8 +189,8 @@ fn build_layer_merkle_proof(layer: &FriLayer, options: &ProofOptions) -> BatchMe
 // ================================================================================================
 #[cfg(test)]
 mod tests {
-    
-    use crate::math::{ field, polynom };
+
+    use crate::math::{field, polynom};
 
     #[test]
     fn verify_remainder() {
@@ -176,8 +213,10 @@ mod tests {
         // check against lower degree
         let degree_plus_1 = degree_plus_1 - 1;
         let result = super::verify_remainder(&remainder, degree_plus_1, root, extension_factor);
-        let err_msg = format!("remainder is not a valid degree {} polynomial", degree_plus_1 - 1);
+        let err_msg = format!(
+            "remainder is not a valid degree {} polynomial",
+            degree_plus_1 - 1
+        );
         assert_eq!(Err(err_msg), result);
     }
-
 }

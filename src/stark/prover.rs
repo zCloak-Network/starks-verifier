@@ -1,14 +1,14 @@
-use log::debug;
-use crate::{
-    math::{ field, polynom, fft },
-    crypto::MerkleTree,
-};
 use super::{
-    ProofOptions, StarkProof, CompositionCoefficients, DeepValues, fri, utils,
-    trace::{ TraceTable, TraceState },
-    constraints::{ ConstraintTable, ConstraintPoly },
-    MAX_CONSTRAINT_DEGREE,
+    constraints::{ConstraintPoly, ConstraintTable},
+    fri,
+    trace::{TraceState, TraceTable},
+    utils, CompositionCoefficients, DeepValues, ProofOptions, StarkProof, MAX_CONSTRAINT_DEGREE,
 };
+use crate::{
+    crypto::MerkleTree,
+    math::{fft, field, polynom},
+};
+use log::debug;
 
 use sp_std::vec::Vec;
 // use wasm_bindgen_test::*;
@@ -16,10 +16,13 @@ use sp_std::vec::Vec;
 // PROVER FUNCTION
 // ================================================================================================
 
-pub fn prove(trace: &mut TraceTable, inputs: &[u128], outputs: &[u128], options: &ProofOptions) -> StarkProof {
+pub fn prove(
+    trace: &mut TraceTable,
+    inputs: &[u128],
+    outputs: &[u128],
+    options: &ProofOptions,
+) -> StarkProof {
     // 1 ----- extend execution trace -------------------------------------------------------------
-
-
 
     // build LDE domain and LDE twiddles (for FFT evaluation over LDE domain)
     let lde_root = field::get_root_of_unity(trace.domain_size());
@@ -30,17 +33,17 @@ pub fn prove(trace: &mut TraceTable, inputs: &[u128], outputs: &[u128], options:
 
     // extend the execution trace registers to LDE domain
     trace.extend(&lde_twiddles);
-    debug!("Extended execution trace from {} to {} steps",
+    debug!(
+        "Extended execution trace from {} to {} steps",
         trace.unextended_length(),
-        trace.domain_size());
-
+        trace.domain_size()
+    );
 
     // 2 ----- build Merkle tree from the extended execution trace ------------------------------------
     let trace_tree = trace.build_merkle_tree(options.hash_fn());
 
-
     // 3 ----- evaluate constraints ---------------------------------------------------------------
-    
+
     // initialize constraint evaluation table
     let mut constraints = ConstraintTable::new(&trace, trace_tree.root(), inputs, outputs);
 
@@ -59,23 +62,30 @@ pub fn prove(trace: &mut TraceTable, inputs: &[u128], outputs: &[u128], options:
         // copy current and next states from the trace table; next state may wrap around the
         // execution trace (close to the end of the trace)
         trace.fill_state(&mut current, i);
-        trace.fill_state(&mut next, (i + trace.extension_factor()) % trace.domain_size());
+        trace.fill_state(
+            &mut next,
+            (i + trace.extension_factor()) % trace.domain_size(),
+        );
 
         // evaluate the constraints
         constraints.evaluate(&current, &next, lde_domain[i], i / stride);
     }
 
-    debug!("Evaluated {} constraints over domain of {} elements",
+    debug!(
+        "Evaluated {} constraints over domain of {} elements",
         constraints.constraint_count(),
-        constraints.evaluation_domain_size());
+        constraints.evaluation_domain_size()
+    );
 
     // 4 ----- convert constraint evaluations into a polynomial -----------------------------------
     let constraint_poly = constraints.combine_polys();
-    debug!("Converted constraint evaluations into a single polynomial of degree {}",
-        constraint_poly.degree());
+    debug!(
+        "Converted constraint evaluations into a single polynomial of degree {}",
+        constraint_poly.degree()
+    );
 
     // 5 ----- build Merkle tree from constraint polynomial evaluations ---------------------------
-    
+
     // evaluate constraint polynomial over the evaluation domain
     let constraint_evaluations = constraint_poly.eval(&lde_twiddles);
 
@@ -91,19 +101,24 @@ pub fn prove(trace: &mut TraceTable, inputs: &[u128], outputs: &[u128], options:
 
     // evaluate the composition polynomial over LDE domain
     let mut composed_evaluations = composition_poly;
-    debug_assert!(composed_evaluations.capacity() == lde_domain.len(), "invalid composition polynomial capacity");
-    unsafe { composed_evaluations.set_len(composed_evaluations.capacity()); }
+    debug_assert!(
+        composed_evaluations.capacity() == lde_domain.len(),
+        "invalid composition polynomial capacity"
+    );
+    unsafe {
+        composed_evaluations.set_len(composed_evaluations.capacity());
+    }
     polynom::eval_fft_twiddles(&mut composed_evaluations, &lde_twiddles, true);
 
-    debug!("Built composition polynomial and evaluated it over domain of {} elements",
-        composed_evaluations.len());
-
+    debug!(
+        "Built composition polynomial and evaluated it over domain of {} elements",
+        composed_evaluations.len()
+    );
 
     // 7 ----- compute FRI layers for the composition polynomial ----------------------------------
     let composition_degree = utils::get_composition_degree(trace.unextended_length());
     debug_assert!(composition_degree == polynom::infer_degree(&composed_evaluations));
     let (fri_trees, fri_values) = fri::reduce(&composed_evaluations, &lde_domain, options);
-
 
     // 8 ----- determine query positions -----------------------------------------------------------
 
@@ -124,9 +139,11 @@ pub fn prove(trace: &mut TraceTable, inputs: &[u128], outputs: &[u128], options:
 
     let positions = utils::compute_query_positions(&seed, lde_domain.len(), options);
 
-    debug!("Determined {} query positions from seed {}",
+    debug!(
+        "Determined {} query positions from seed {}",
         positions.len(),
-        hex::encode(seed));
+        hex::encode(seed)
+    );
 
     // 9 ----- build proof object -----------------------------------------------------------------
 
@@ -153,7 +170,8 @@ pub fn prove(trace: &mut TraceTable, inputs: &[u128], outputs: &[u128], options:
         trace.ctx_depth(),
         trace.loop_depth(),
         trace.stack_depth(),
-        &options);
+        &options,
+    );
 
     return proof;
 }
@@ -168,7 +186,10 @@ fn twiddles_from_domain(domain: &[u128]) -> Vec<u128> {
 
 /// Re-interpret vector of 16-byte values as a vector of 32-byte arrays
 fn evaluations_to_leaves(evaluations: Vec<u128>) -> Vec<[u8; 32]> {
-    assert!(evaluations.len() % 2 == 0, "number of values must be divisible by 2");
+    assert!(
+        evaluations.len() % 2 == 0,
+        "number of values must be divisible by 2"
+    );
     let mut v = sp_std::mem::ManuallyDrop::new(evaluations);
     let p = v.as_mut_ptr();
     let len = v.len() / 2;
@@ -176,7 +197,11 @@ fn evaluations_to_leaves(evaluations: Vec<u128>) -> Vec<[u8; 32]> {
     return unsafe { Vec::from_raw_parts(p as *mut [u8; 32], len, cap) };
 }
 
-fn build_composition_poly(trace: &TraceTable, constraint_poly: ConstraintPoly, seed: &[u8; 32]) -> (Vec<u128>, DeepValues) {
+fn build_composition_poly(
+    trace: &TraceTable,
+    constraint_poly: ConstraintPoly,
+    seed: &[u8; 32],
+) -> (Vec<u128>, DeepValues) {
     // pseudo-randomly selection deep point z and coefficients for the composition
     let z = field::prng(*seed);
     let coefficients = CompositionCoefficients::new(*seed);
@@ -187,5 +212,11 @@ fn build_composition_poly(trace: &TraceTable, constraint_poly: ConstraintPoly, s
     // divide out deep point from constraint polynomial and merge it into the result
     constraint_poly.merge_into(&mut result, z, &coefficients);
 
-    return (result, DeepValues { trace_at_z1: s1, trace_at_z2: s2 });
+    return (
+        result,
+        DeepValues {
+            trace_at_z1: s1,
+            trace_at_z2: s2,
+        },
+    );
 }
