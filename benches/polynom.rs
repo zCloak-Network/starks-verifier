@@ -1,5 +1,5 @@
-use criterion::{ black_box, criterion_group, Criterion };
-use starksVM::math::{ field, polynom, quartic };
+use criterion::{black_box, criterion_group, Criterion};
+use starksVM::math::{field, polynom, quartic};
 
 pub fn eval(c: &mut Criterion) {
     let p = field::rand_vector(1024);
@@ -28,5 +28,9 @@ pub fn interpolate_quartic_batch(c: &mut Criterion) {
     });
 }
 
-
-criterion_group!(group, eval, evaluate_quartic_batch, interpolate_quartic_batch);
+criterion_group!(
+    group,
+    eval,
+    evaluate_quartic_batch,
+    interpolate_quartic_batch
+);

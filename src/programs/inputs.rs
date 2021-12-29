@@ -1,6 +1,6 @@
-use crate::{ MAX_PUBLIC_INPUTS };
+use crate::MAX_PUBLIC_INPUTS;
+use serde::{Deserialize, Serialize};
 use sp_std::{vec, vec::Vec};
-use serde::{Serialize, Deserialize};
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct ProgramInputs {
@@ -9,28 +9,28 @@ pub struct ProgramInputs {
 }
 
 impl ProgramInputs {
-
     /// Returns `ProgramInputs` initialized with the provided public and secret inputs.
     pub fn new(public: &[u128], secret_a: &[u128], secret_b: &[u128]) -> ProgramInputs {
-
-        assert!(public.len() <= MAX_PUBLIC_INPUTS,
+        assert!(
+            public.len() <= MAX_PUBLIC_INPUTS,
             "expected no more than {} public inputs, but received {}",
             MAX_PUBLIC_INPUTS,
-            public.len());
-        assert!(secret_a.len() >= secret_b.len(), 
+            public.len()
+        );
+        assert!(secret_a.len() >= secret_b.len(),
             "number of primary secret inputs cannot be smaller than the number of secondary secret inputs");
 
         return ProgramInputs {
-            public  : public.to_vec(),
-            secret  : [secret_a.to_vec(), secret_b.to_vec()]
+            public: public.to_vec(),
+            secret: [secret_a.to_vec(), secret_b.to_vec()],
         };
     }
 
     /// Returns `ProgramInputs` with public and secret input tapes set to empty vectors.
     pub fn none() -> ProgramInputs {
         return ProgramInputs {
-            public  : Vec::new(),
-            secret  : [Vec::new(), Vec::new()],
+            public: Vec::new(),
+            secret: [Vec::new(), Vec::new()],
         };
     }
 
@@ -39,7 +39,7 @@ impl ProgramInputs {
     pub fn from_public(public: &[u128]) -> ProgramInputs {
         return ProgramInputs {
             public: public.to_vec(),
-            secret: [vec![], vec![]]
+            secret: [vec![], vec![]],
         };
     }
 

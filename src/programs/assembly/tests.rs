@@ -50,7 +50,8 @@ fn sequence_of_blocks_with_prefix() {
 
 #[test]
 fn sequence_of_blocks_with_prefix_and_suffix() {
-    let source = "begin read read add block push.1 push.2 add end block push.3 push.4 sub end hash.2 end";
+    let source =
+        "begin read read add block push.1 push.2 add end block push.3 push.4 sub end hash.2 end";
     let program = super::compile(source).unwrap();
 
     let expected = "\

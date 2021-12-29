@@ -1,6 +1,6 @@
 pub mod hash;
 
 mod merkle;
-pub use merkle::{ MerkleTree, BatchMerkleProof, build_merkle_nodes };
+pub use merkle::{build_merkle_nodes, BatchMerkleProof, MerkleTree};
 
 pub type HashFunction = fn(&[u8], &mut [u8]);

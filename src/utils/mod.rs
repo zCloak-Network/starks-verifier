@@ -1,4 +1,4 @@
-use sp_std::{ mem, slice, ops::Range, vec::Vec };
+use sp_std::{mem, ops::Range, slice, vec::Vec};
 
 // RE-EXPORTS
 // ================================================================================================
@@ -12,7 +12,9 @@ use sp_std::vec;
 pub fn uninit_vector<T>(length: usize) -> Vec<T> {
     let mut vector = Vec::with_capacity(length);
 
-    unsafe { vector.set_len(length); }
+    unsafe {
+        vector.set_len(length);
+    }
     return vector;
 }
 
@@ -37,9 +39,8 @@ pub fn remove_leading_zeros(values: &[u128]) -> Vec<u128> {
 // ================================================================================================
 pub fn as_bytes<T>(values: &[T]) -> &[u8] {
     let value_size = mem::size_of::<T>();
-    let result = unsafe {
-        slice::from_raw_parts(values.as_ptr() as *const u8, values.len() * value_size)
-    };
+    let result =
+        unsafe { slice::from_raw_parts(values.as_ptr() as *const u8, values.len() * value_size) };
     return result;
 }
 
@@ -52,8 +53,8 @@ pub trait RangeSlider {
 impl RangeSlider for Range<usize> {
     fn slide(self, width: usize) -> Range<usize> {
         return Range {
-            start   : self.end,
-            end     : self.end + width
+            start: self.end,
+            end: self.end + width,
         };
     }
 }
@@ -66,12 +67,12 @@ mod tests {
     #[test]
     fn as_bytes() {
         let source: [u64; 4] = [1, 2, 3, 4];
-        
+
         // should convert correctly
         let bytes = super::as_bytes(&source);
         let expected = [
-            1, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0,
-            3, 0, 0, 0, 0, 0, 0, 0, 4, 0, 0, 0, 0, 0, 0, 0,
+            1, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 4, 0, 0, 0, 0,
+            0, 0, 0,
         ];
         assert_eq!(expected, bytes);
     }

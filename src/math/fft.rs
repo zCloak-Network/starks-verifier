@@ -11,16 +11,22 @@ const MAX_LOOP: usize = 256;
 
 /// In-place recursive FFT with permuted output. If `num_threads` is > 1, the computation is
 /// performed in multiple threads. Number of threads must be a power of 2.
-/// 
+///
 /// Adapted from: https://github.com/0xProject/OpenZKP/tree/master/algebra/primefield/src/fft
-pub fn fft_in_place(values: &mut [u128], twiddles: &[u128], count: usize, stride: usize, offset: usize, num_threads: usize) {
-    
+pub fn fft_in_place(
+    values: &mut [u128],
+    twiddles: &[u128],
+    count: usize,
+    stride: usize,
+    offset: usize,
+    num_threads: usize,
+) {
     let size = values.len() / stride;
     debug_assert!(size.is_power_of_two());
     debug_assert!(offset < stride);
     debug_assert_eq!(values.len() % size, 0);
     debug_assert!(num_threads.is_power_of_two());
-    
+
     // Keep recursing until size is 2
     if size > 2 {
         if stride == count && count < MAX_LOOP {
@@ -28,22 +34,33 @@ pub fn fft_in_place(values: &mut [u128], twiddles: &[u128], count: usize, stride
         } else if num_threads > 1 {
             // run half of FFT in the current thread, and spin up a new thread for the other half
             fft_in_place(values, twiddles, count, 2 * stride, offset, num_threads);
-            fft_in_place(values, twiddles, count, 2 * stride, offset + stride, num_threads);
-            // thread::scope(|s| {
-            //     // get another mutable reference to values to be used inside the new thread;
-            //     // this is OK because halves of FFT don't step on each other
-            //     let values2 = unsafe { &mut *(values as *mut [u128]) };
-            //     s.spawn(move |_| {
-            //         fft_in_place(values2, twiddles, count, 2 * stride, offset, num_threads / 2);
-            //     });
-            //     fft_in_place(values, twiddles, count, 2 * stride, offset + stride, num_threads / 2);
-            // }).unwrap();
-        
-        
-        }
-        else {
+            fft_in_place(
+                values,
+                twiddles,
+                count,
+                2 * stride,
+                offset + stride,
+                num_threads,
+            );
+        // thread::scope(|s| {
+        //     // get another mutable reference to values to be used inside the new thread;
+        //     // this is OK because halves of FFT don't step on each other
+        //     let values2 = unsafe { &mut *(values as *mut [u128]) };
+        //     s.spawn(move |_| {
+        //         fft_in_place(values2, twiddles, count, 2 * stride, offset, num_threads / 2);
+        //     });
+        //     fft_in_place(values, twiddles, count, 2 * stride, offset + stride, num_threads / 2);
+        // }).unwrap();
+        } else {
             fft_in_place(values, twiddles, count, 2 * stride, offset, num_threads);
-            fft_in_place(values, twiddles, count, 2 * stride, offset + stride, num_threads);
+            fft_in_place(
+                values,
+                twiddles,
+                count,
+                2 * stride,
+                offset + stride,
+                num_threads,
+            );
         }
     }
 
@@ -52,7 +69,11 @@ pub fn fft_in_place(values: &mut [u128], twiddles: &[u128], count: usize, stride
     }
 
     let last_offset = offset + size * stride;
-    for (i, offset) in (offset..last_offset).step_by(2 * stride).enumerate().skip(1) {
+    for (i, offset) in (offset..last_offset)
+        .step_by(2 * stride)
+        .enumerate()
+        .skip(1)
+    {
         for j in offset..(offset + count) {
             butterfly_twiddle(values, twiddles[i], j, stride);
         }
@@ -86,7 +107,9 @@ pub fn permute(v: &mut [u128]) {
 // ================================================================================================
 fn permute_index(size: usize, index: usize) -> usize {
     debug_assert!(index < size);
-    if size == 1 { return 0 }
+    if size == 1 {
+        return 0;
+    }
     debug_assert!(size.is_power_of_two());
     let bits = size.trailing_zeros() as usize;
     return index.reverse_bits() >> (USIZE_BITS - bits);
@@ -115,7 +138,7 @@ fn butterfly_twiddle(values: &mut [u128], twiddle: u128, offset: usize, stride: 
 // ================================================================================================
 #[cfg(test)]
 mod tests {
-    use crate::math::{ field, polynom };
+    use crate::math::{field, polynom};
 
     #[test]
     fn fft_in_place() {
@@ -153,7 +176,10 @@ mod tests {
         let mut p = field::rand_vector(1024);
         let g = field::get_root_of_unity(1024);
         let roots = field::get_power_series(g, 1024);
-        let expected = roots.iter().map(|x| polynom::eval(&p, *x)).collect::<Vec<u128>>();
+        let expected = roots
+            .iter()
+            .map(|x| polynom::eval(&p, *x))
+            .collect::<Vec<u128>>();
         let twiddles = super::get_twiddles(g, 1024);
         super::fft_in_place(&mut p, &twiddles, 1, 1, 0, 1);
         super::permute(&mut p);

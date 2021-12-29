@@ -1,26 +1,21 @@
-mod trace;
 mod constraints;
-mod options;
-mod prover;
-mod verifier;
-mod proof;
 mod fri;
+mod options;
+mod proof;
+mod prover;
+mod trace;
 mod utils;
+mod verifier;
 
-pub use trace::{ TraceTable, TraceState };
+pub use trace::{TraceState, TraceTable};
 
-pub use constraints::{
-    ConstraintEvaluator,
-    ConstraintTable,
-    ConstraintPoly };
+pub use constraints::{ConstraintEvaluator, ConstraintPoly, ConstraintTable};
 
-pub use utils::{
-    ConstraintCoefficients,
-    CompositionCoefficients };
+pub use utils::{CompositionCoefficients, ConstraintCoefficients};
 
 pub use options::ProofOptions;
-pub use proof::{ StarkProof, DeepValues, GenOutput, ProgramAssembly};
-pub use prover::{ prove };
-pub use verifier::{ verify };
+pub use proof::{DeepValues, GenOutput, ProgramAssembly, StarkProof};
+pub use prover::prove;
+pub use verifier::verify;
 
-const MAX_CONSTRAINT_DEGREE : usize = 8;
+const MAX_CONSTRAINT_DEGREE: usize = 8;

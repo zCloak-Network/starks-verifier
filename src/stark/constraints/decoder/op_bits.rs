@@ -1,14 +1,19 @@
 use super::{
-    field::{ self, mul, add },
-    TraceState, FlowOps, UserOps, is_binary, binary_not, are_equal, EvaluationResult,
-    CYCLE_MASK_IDX, PREFIX_MASK_IDX, PUSH_MASK_IDX,
+    are_equal, binary_not,
+    field::{self, add, mul},
+    is_binary, EvaluationResult, FlowOps, TraceState, UserOps, CYCLE_MASK_IDX, PREFIX_MASK_IDX,
+    PUSH_MASK_IDX,
 };
 
 // CONSTRAINT EVALUATOR
 // ================================================================================================
 
-pub fn enforce_op_bits(result: &mut [u128], current: &TraceState, next: &TraceState, masks: &[u128; 3])
-{
+pub fn enforce_op_bits(
+    result: &mut [u128],
+    current: &TraceState,
+    next: &TraceState,
+    masks: &[u128; 3],
+) {
     let mut i = 0;
 
     // make sure all op bits are binary and compute their product/sum
@@ -44,13 +49,16 @@ pub fn enforce_op_bits(result: &mut [u128], current: &TraceState, next: &TraceSt
 
     // ld_ops and hd_ops can be all 0s at the first step, but cannot be all 0s
     // at any other step
-    result[i] = mul(op_counter, mul(binary_not(ld_bit_prod), binary_not(hd_bit_prod)));
+    result[i] = mul(
+        op_counter,
+        mul(binary_not(ld_bit_prod), binary_not(hd_bit_prod)),
+    );
     i += 1;
 
     // when cf_ops are not all 0s, ld_ops and hd_ops must be all 1s
     result[i] = mul(cf_bit_sum, binary_not(mul(ld_bit_prod, hd_bit_prod)));
     i += 1;
-    
+
     let cf_op_flags = current.cf_op_flags();
 
     // VOID can be followed only by VOID
@@ -64,8 +72,8 @@ pub fn enforce_op_bits(result: &mut [u128], current: &TraceState, next: &TraceSt
     // BEGIN, LOOP, BREAK, and WRAP are allowed only on one less than multiple of 16
     let prefix_mask = masks[PREFIX_MASK_IDX];
     result.agg_constraint(i, cf_op_flags[FlowOps::Begin.op_index()], prefix_mask);
-    result.agg_constraint(i, cf_op_flags[FlowOps::Loop.op_index()],  prefix_mask);
-    result.agg_constraint(i, cf_op_flags[FlowOps::Wrap.op_index()],  prefix_mask);
+    result.agg_constraint(i, cf_op_flags[FlowOps::Loop.op_index()], prefix_mask);
+    result.agg_constraint(i, cf_op_flags[FlowOps::Wrap.op_index()], prefix_mask);
     result.agg_constraint(i, cf_op_flags[FlowOps::Break.op_index()], prefix_mask);
 
     // TEND and FEND is allowed only on multiples of 16
@@ -83,11 +91,10 @@ pub fn enforce_op_bits(result: &mut [u128], current: &TraceState, next: &TraceSt
 #[cfg(test)]
 mod tests {
 
-    use super::{ TraceState, FlowOps, UserOps, super::NUM_OP_CONSTRAINTS };
+    use super::{super::NUM_OP_CONSTRAINTS, FlowOps, TraceState, UserOps};
 
     #[test]
     fn op_bits_are_binary() {
-
         let success_result = vec![0; NUM_OP_CONSTRAINTS];
 
         // all bits are 1s: success
@@ -102,7 +109,10 @@ mod tests {
             expected_evaluations[i] = 3 * 3 - 3;
 
             let state = new_state_from_bits(op_bits, [1, 1, 1, 1, 1, 1, 1]);
-            assert_eq!(expected_evaluations, &evaluate_state(&state, [0, 0, 0], false)[..10]);
+            assert_eq!(
+                expected_evaluations,
+                &evaluate_state(&state, [0, 0, 0], false)[..10]
+            );
         }
 
         // user bits are not binary
@@ -113,13 +123,15 @@ mod tests {
             expected_evaluations[i + 3] = 3 * 3 - 3;
 
             let state = new_state_from_bits([0, 0, 0], op_bits);
-            assert_eq!(expected_evaluations, &evaluate_state(&state, [0, 0, 0], false)[..10]);
+            assert_eq!(
+                expected_evaluations,
+                &evaluate_state(&state, [0, 0, 0], false)[..10]
+            );
         }
     }
 
     #[test]
     fn invalid_op_combinations() {
-
         let success_result = vec![0; NUM_OP_CONSTRAINTS];
 
         // user op bits cannot be all 0s
@@ -142,9 +154,8 @@ mod tests {
 
     #[test]
     fn invalid_op_alignment() {
-
         let success_result = vec![0; NUM_OP_CONSTRAINTS];
-        
+
         // TEND and FEND are allowed only on multiples of 16
         let state = new_state(FlowOps::Tend as u8, UserOps::Noop as u8, 1);
         assert_eq!(success_result, evaluate_state(&state, [0, 0, 0], false));
@@ -207,12 +218,12 @@ mod tests {
     // --------------------------------------------------------------------------------------------
     fn new_state(flow_op: u8, user_op: u8, op_counter: u128) -> TraceState {
         let mut state = TraceState::new(1, 0, 1);
-    
+
         let mut op_bits = [0; 10];
         for i in 0..3 {
             op_bits[i] = ((flow_op as u128) >> i) & 1;
         }
-    
+
         for i in 0..7 {
             op_bits[i + 3] = ((user_op as u128) >> i) & 1;
         }
@@ -225,14 +236,18 @@ mod tests {
     fn new_state_from_bits(cf_bits: [u128; 3], u_bits: [u128; 7]) -> TraceState {
         let mut state = TraceState::new(1, 0, 1);
         state.set_op_bits([
-            cf_bits[0], cf_bits[1], cf_bits[2],
-            u_bits[0], u_bits[1], u_bits[2], u_bits[3], u_bits[4], u_bits[5], u_bits[6]
+            cf_bits[0], cf_bits[1], cf_bits[2], u_bits[0], u_bits[1], u_bits[2], u_bits[3],
+            u_bits[4], u_bits[5], u_bits[6],
         ]);
         return state;
     }
 
     fn evaluate_state(state: &TraceState, masks: [u128; 3], inc_counter: bool) -> Vec<u128> {
-        let op_counter = if inc_counter { state.op_counter() + 1 } else { state.op_counter() };
+        let op_counter = if inc_counter {
+            state.op_counter() + 1
+        } else {
+            state.op_counter()
+        };
         let next_state = new_state(FlowOps::Void as u8, UserOps::Noop as u8, op_counter);
         let mut evaluations = vec![0; NUM_OP_CONSTRAINTS];
         super::enforce_op_bits(&mut evaluations, &state, &next_state, &masks);

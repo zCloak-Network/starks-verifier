@@ -1,14 +1,12 @@
 use super::{
-    TraceState, SPONGE_WIDTH,
-    are_equal, is_zero, EvaluationResult,
-    enforce_left_shift, enforce_right_shift, enforce_stack_copy
+    are_equal, enforce_left_shift, enforce_right_shift, enforce_stack_copy, is_zero,
+    EvaluationResult, TraceState, SPONGE_WIDTH,
 };
 
 // CONSTRAINT EVALUATORS
 // ================================================================================================
 
-pub fn enforce_begin(result: &mut [u128], current: &TraceState, next: &TraceState, op_flag: u128)
-{
+pub fn enforce_begin(result: &mut [u128], current: &TraceState, next: &TraceState, op_flag: u128) {
     // make sure sponge state has been cleared
     let new_sponge = next.sponge();
     result.agg_constraint(0, op_flag, is_zero(new_sponge[0]));
@@ -22,15 +20,26 @@ pub fn enforce_begin(result: &mut [u128], current: &TraceState, next: &TraceStat
     let ctx_stack_end = ctx_stack_start + current.ctx_stack().len();
     let ctx_result = &mut result[ctx_stack_start..ctx_stack_end];
     ctx_result.agg_constraint(0, op_flag, are_equal(parent_hash, next.ctx_stack()[0]));
-    enforce_right_shift(ctx_result, current.ctx_stack(), next.ctx_stack(), 1, op_flag);
+    enforce_right_shift(
+        ctx_result,
+        current.ctx_stack(),
+        next.ctx_stack(),
+        1,
+        op_flag,
+    );
 
     // make sure loop stack didn't change
     let loop_result = &mut result[ctx_stack_end..ctx_stack_end + current.loop_stack().len()];
-    enforce_stack_copy(loop_result, current.loop_stack(), next.loop_stack(), 0, op_flag);
+    enforce_stack_copy(
+        loop_result,
+        current.loop_stack(),
+        next.loop_stack(),
+        0,
+        op_flag,
+    );
 }
 
-pub fn enforce_tend(result: &mut [u128], current: &TraceState, next: &TraceState, op_flag: u128)
-{
+pub fn enforce_tend(result: &mut [u128], current: &TraceState, next: &TraceState, op_flag: u128) {
     let parent_hash = current.ctx_stack()[0];
     let block_hash = current.sponge()[0];
 
@@ -44,15 +53,27 @@ pub fn enforce_tend(result: &mut [u128], current: &TraceState, next: &TraceState
     let ctx_stack_start = SPONGE_WIDTH + 1; // 1 is for loop image constraint
     let ctx_stack_end = ctx_stack_start + current.ctx_stack().len();
     let ctx_result = &mut result[ctx_stack_start..ctx_stack_end];
-    enforce_left_shift(ctx_result, current.ctx_stack(), next.ctx_stack(), 1, 1, op_flag);
+    enforce_left_shift(
+        ctx_result,
+        current.ctx_stack(),
+        next.ctx_stack(),
+        1,
+        1,
+        op_flag,
+    );
 
     // make sure loop stack didn't change
     let loop_result = &mut result[ctx_stack_end..ctx_stack_end + current.loop_stack().len()];
-    enforce_stack_copy(loop_result, current.loop_stack(), next.loop_stack(), 0, op_flag);
+    enforce_stack_copy(
+        loop_result,
+        current.loop_stack(),
+        next.loop_stack(),
+        0,
+        op_flag,
+    );
 }
 
-pub fn enforce_fend(result: &mut [u128], current: &TraceState, next: &TraceState, op_flag: u128)
-{
+pub fn enforce_fend(result: &mut [u128], current: &TraceState, next: &TraceState, op_flag: u128) {
     let parent_hash = current.ctx_stack()[0];
     let block_hash = current.sponge()[0];
 
@@ -66,15 +87,27 @@ pub fn enforce_fend(result: &mut [u128], current: &TraceState, next: &TraceState
     let ctx_stack_start = SPONGE_WIDTH + 1; // 1 is for loop image constraint
     let ctx_stack_end = ctx_stack_start + current.ctx_stack().len();
     let ctx_result = &mut result[ctx_stack_start..ctx_stack_end];
-    enforce_left_shift(ctx_result, current.ctx_stack(), next.ctx_stack(), 1, 1, op_flag);
+    enforce_left_shift(
+        ctx_result,
+        current.ctx_stack(),
+        next.ctx_stack(),
+        1,
+        1,
+        op_flag,
+    );
 
     // make sure loop stack didn't change
     let loop_result = &mut result[ctx_stack_end..ctx_stack_end + current.loop_stack().len()];
-    enforce_stack_copy(loop_result, current.loop_stack(), next.loop_stack(), 0, op_flag);
+    enforce_stack_copy(
+        loop_result,
+        current.loop_stack(),
+        next.loop_stack(),
+        0,
+        op_flag,
+    );
 }
 
-pub fn enforce_loop(result: &mut [u128], current: &TraceState, next: &TraceState, op_flag: u128)
-{
+pub fn enforce_loop(result: &mut [u128], current: &TraceState, next: &TraceState, op_flag: u128) {
     // make sure sponge state has been cleared
     let new_sponge = next.sponge();
     result.agg_constraint(0, op_flag, is_zero(new_sponge[0]));
@@ -88,16 +121,27 @@ pub fn enforce_loop(result: &mut [u128], current: &TraceState, next: &TraceState
     let ctx_stack_end = ctx_stack_start + current.ctx_stack().len();
     let ctx_result = &mut result[ctx_stack_start..ctx_stack_end];
     ctx_result.agg_constraint(0, op_flag, are_equal(parent_hash, next.ctx_stack()[0]));
-    enforce_right_shift(ctx_result, current.ctx_stack(), next.ctx_stack(), 1, op_flag);
+    enforce_right_shift(
+        ctx_result,
+        current.ctx_stack(),
+        next.ctx_stack(),
+        1,
+        op_flag,
+    );
 
     // make sure loop stack was shifted by 1 item to the right, but don't enforce constraints
     // on the first item of the stack (which will contain loop image)
     let loop_result = &mut result[ctx_stack_end..ctx_stack_end + current.loop_stack().len()];
-    enforce_right_shift(loop_result, current.loop_stack(), next.loop_stack(), 1, op_flag);
+    enforce_right_shift(
+        loop_result,
+        current.loop_stack(),
+        next.loop_stack(),
+        1,
+        op_flag,
+    );
 }
 
-pub fn enforce_wrap(result: &mut [u128], current: &TraceState, next: &TraceState, op_flag: u128)
-{
+pub fn enforce_wrap(result: &mut [u128], current: &TraceState, next: &TraceState, op_flag: u128) {
     // make sure sponge state has been cleared
     let new_sponge = next.sponge();
     result.agg_constraint(0, op_flag, is_zero(new_sponge[0]));
@@ -107,21 +151,36 @@ pub fn enforce_wrap(result: &mut [u128], current: &TraceState, next: &TraceState
 
     // make sure item at the top of loop stack is equal to loop image
     let loop_image = current.sponge()[0];
-    result.agg_constraint(SPONGE_WIDTH, op_flag, are_equal(loop_image, current.loop_stack()[0]));
+    result.agg_constraint(
+        SPONGE_WIDTH,
+        op_flag,
+        are_equal(loop_image, current.loop_stack()[0]),
+    );
 
     // make sure context stack didn't change
     let ctx_stack_start = SPONGE_WIDTH + 1; // 1 is for loop image constraint
     let ctx_stack_end = ctx_stack_start + current.ctx_stack().len();
     let ctx_result = &mut result[ctx_stack_start..ctx_stack_end];
-    enforce_stack_copy(ctx_result, current.ctx_stack(), next.ctx_stack(), 0, op_flag);
+    enforce_stack_copy(
+        ctx_result,
+        current.ctx_stack(),
+        next.ctx_stack(),
+        0,
+        op_flag,
+    );
 
     // make sure loop stack didn't change
     let loop_result = &mut result[ctx_stack_end..ctx_stack_end + current.loop_stack().len()];
-    enforce_stack_copy(loop_result, current.loop_stack(), next.loop_stack(), 0, op_flag);
+    enforce_stack_copy(
+        loop_result,
+        current.loop_stack(),
+        next.loop_stack(),
+        0,
+        op_flag,
+    );
 }
 
-pub fn enforce_break(result: &mut [u128], current: &TraceState, next: &TraceState, op_flag: u128)
-{
+pub fn enforce_break(result: &mut [u128], current: &TraceState, next: &TraceState, op_flag: u128) {
     // make sure sponge state didn't change
     let old_sponge = current.sponge();
     let new_sponge = next.sponge();
@@ -131,21 +190,37 @@ pub fn enforce_break(result: &mut [u128], current: &TraceState, next: &TraceStat
 
     // make sure item at the top of loop stack is equal to loop image
     let loop_image = old_sponge[0];
-    result.agg_constraint(SPONGE_WIDTH, op_flag, are_equal(loop_image, current.loop_stack()[0]));
+    result.agg_constraint(
+        SPONGE_WIDTH,
+        op_flag,
+        are_equal(loop_image, current.loop_stack()[0]),
+    );
 
     // make sure context stack didn't change
     let ctx_stack_start = SPONGE_WIDTH + 1; // 1 is for loop image constraint
     let ctx_stack_end = ctx_stack_start + current.ctx_stack().len();
     let ctx_result = &mut result[ctx_stack_start..ctx_stack_end];
-    enforce_stack_copy(ctx_result, current.ctx_stack(), next.ctx_stack(), 0, op_flag);
+    enforce_stack_copy(
+        ctx_result,
+        current.ctx_stack(),
+        next.ctx_stack(),
+        0,
+        op_flag,
+    );
 
     // make loop image was popped from loop stack
     let loop_result = &mut result[ctx_stack_end..ctx_stack_end + current.loop_stack().len()];
-    enforce_left_shift(loop_result, current.loop_stack(), next.loop_stack(), 1, 1, op_flag);
+    enforce_left_shift(
+        loop_result,
+        current.loop_stack(),
+        next.loop_stack(),
+        1,
+        1,
+        op_flag,
+    );
 }
 
-pub fn enforce_void(result: &mut [u128], current: &TraceState, next: &TraceState, op_flag: u128)
-{
+pub fn enforce_void(result: &mut [u128], current: &TraceState, next: &TraceState, op_flag: u128) {
     // make sure sponge state didn't change
     let old_sponge = current.sponge();
     let new_sponge = next.sponge();
@@ -157,27 +232,38 @@ pub fn enforce_void(result: &mut [u128], current: &TraceState, next: &TraceState
     let ctx_stack_start = SPONGE_WIDTH + 1; // 1 is for loop image constraint
     let ctx_stack_end = ctx_stack_start + current.ctx_stack().len();
     let ctx_result = &mut result[ctx_stack_start..ctx_stack_end];
-    enforce_stack_copy(ctx_result, current.ctx_stack(), next.ctx_stack(), 0, op_flag);
+    enforce_stack_copy(
+        ctx_result,
+        current.ctx_stack(),
+        next.ctx_stack(),
+        0,
+        op_flag,
+    );
 
     // make sure loop stack didn't change
     let loop_result = &mut result[ctx_stack_end..ctx_stack_end + current.loop_stack().len()];
-    enforce_stack_copy(loop_result, current.loop_stack(), next.loop_stack(), 0, op_flag);
+    enforce_stack_copy(
+        loop_result,
+        current.loop_stack(),
+        next.loop_stack(),
+        0,
+        op_flag,
+    );
 }
 
 // TESTS
 // ================================================================================================
 #[cfg(test)]
 mod tests {
-    
-    use crate::processor::opcodes::{ FlowOps, UserOps };
-    use super::{ TraceState, are_equal };
+
+    use super::{are_equal, TraceState};
+    use crate::processor::opcodes::{FlowOps, UserOps};
 
     #[test]
     fn op_begin() {
-
         // correct transition, context depth = 1
         let state1 = new_state(15, FlowOps::Begin, &[3, 5, 7, 9], &[0], &[]);
-        let state2 = new_state(16, FlowOps::Void,  &[0, 0, 0, 0], &[3], &[]);
+        let state2 = new_state(16, FlowOps::Void, &[0, 0, 0, 0], &[3], &[]);
 
         let mut evaluations = vec![0; 7];
         super::enforce_begin(&mut evaluations, &state1, &state2, 1);
@@ -185,32 +271,34 @@ mod tests {
 
         // correct transition, context depth = 2
         let state1 = new_state(15, FlowOps::Begin, &[3, 5, 7, 9], &[2, 0], &[]);
-        let state2 = new_state(16, FlowOps::Void,  &[0, 0, 0, 0], &[3, 2], &[]);
-        
+        let state2 = new_state(16, FlowOps::Void, &[0, 0, 0, 0], &[3, 2], &[]);
+
         let mut evaluations = vec![0; 8];
         super::enforce_begin(&mut evaluations, &state1, &state2, 1);
         assert_eq!(vec![0, 0, 0, 0, 0, 0, 0, 0], evaluations);
 
         // incorrect transition, context depth = 1
         let state1 = new_state(15, FlowOps::Begin, &[3, 5, 7, 9], &[0], &[]);
-        let state2 = new_state(16, FlowOps::Void,  &[1, 2, 3, 4], &[5], &[]);
-        
+        let state2 = new_state(16, FlowOps::Void, &[1, 2, 3, 4], &[5], &[]);
+
         let mut evaluations = vec![0; 7];
         super::enforce_begin(&mut evaluations, &state1, &state2, 1);
         assert_eq!(vec![1, 2, 3, 4, 0, are_equal(3, 5), 0], evaluations);
 
         // incorrect transition, context depth = 2
         let state1 = new_state(15, FlowOps::Begin, &[3, 5, 7, 9], &[2, 0], &[]);
-        let state2 = new_state(16, FlowOps::Void,  &[1, 2, 3, 4], &[5, 6], &[]);
+        let state2 = new_state(16, FlowOps::Void, &[1, 2, 3, 4], &[5, 6], &[]);
 
         let mut evaluations = vec![0; 8];
         super::enforce_begin(&mut evaluations, &state1, &state2, 1);
-        assert_eq!(vec![1, 2, 3, 4, 0, are_equal(3, 5), are_equal(2, 6), 0], evaluations);
+        assert_eq!(
+            vec![1, 2, 3, 4, 0, are_equal(3, 5), are_equal(2, 6), 0],
+            evaluations
+        );
     }
 
     #[test]
     fn op_tend() {
-
         // correct transition, context depth = 1
         let state1 = new_state(15, FlowOps::Tend, &[3, 5, 7, 9], &[8], &[]);
         let state2 = new_state(16, FlowOps::Void, &[8, 3, 4, 0], &[0], &[]);
@@ -246,7 +334,6 @@ mod tests {
 
     #[test]
     fn op_fend() {
-
         // correct transition, context depth = 1
         let state1 = new_state(15, FlowOps::Fend, &[3, 5, 7, 9], &[8], &[]);
         let state2 = new_state(16, FlowOps::Void, &[8, 4, 3, 0], &[0], &[]);
@@ -307,7 +394,7 @@ mod tests {
         assert_eq!(vec![0, 0, 0, 0, 0, 3, 0], evaluations);
 
         // correct transition, context depth = 2, loop depth = 2
-        let state1 = new_state(15, FlowOps::Loop, &[3, 5, 7, 9], &[6, 0], &[11,  0]);
+        let state1 = new_state(15, FlowOps::Loop, &[3, 5, 7, 9], &[6, 0], &[11, 0]);
         let state2 = new_state(16, FlowOps::Void, &[0, 0, 0, 0], &[3, 6], &[13, 11]);
 
         let mut evaluations = vec![0; 9];
@@ -370,7 +457,7 @@ mod tests {
     fn op_break() {
         // correct transition, context depth = 1, loop depth = 1
         let state1 = new_state(15, FlowOps::Break, &[3, 5, 7, 9], &[11], &[3]);
-        let state2 = new_state(16, FlowOps::Void,  &[3, 5, 7, 9], &[11], &[0]);
+        let state2 = new_state(16, FlowOps::Void, &[3, 5, 7, 9], &[11], &[0]);
 
         let mut evaluations = vec![0; 7];
         super::enforce_break(&mut evaluations, &state1, &state2, 1);
@@ -411,7 +498,6 @@ mod tests {
 
     #[test]
     fn op_void() {
-
         // correct transition, context depth = 1
         let state1 = new_state(15, FlowOps::Void, &[3, 5, 7, 9], &[8], &[]);
         let state2 = new_state(16, FlowOps::Void, &[3, 5, 7, 9], &[8], &[]);
@@ -439,8 +525,13 @@ mod tests {
 
     // HELPER FUNCTIONS
     // --------------------------------------------------------------------------------------------
-    fn new_state(step: usize, flow_op: FlowOps, sponge: &[u128; 4], ctx_stack: &[u128], loop_stack: &[u128]) -> TraceState 
-    {
+    fn new_state(
+        step: usize,
+        flow_op: FlowOps,
+        sponge: &[u128; 4],
+        ctx_stack: &[u128],
+        loop_stack: &[u128],
+    ) -> TraceState {
         let ctx_depth = ctx_stack.len();
         let loop_depth = loop_stack.len();
 

@@ -1,18 +1,17 @@
-use crate::{
-    math::field,
-    crypto::{ MerkleTree },
-    MIN_TRACE_LENGTH
-};
-use super::{ StarkProof, TraceState, ConstraintEvaluator, CompositionCoefficients, fri, utils };
+use super::{fri, utils, CompositionCoefficients, ConstraintEvaluator, StarkProof, TraceState};
+use crate::{crypto::MerkleTree, math::field, MIN_TRACE_LENGTH};
 use alloc::string::String;
 use sp_std::{vec, vec::Vec};
-
 
 // VERIFIER FUNCTION
 // ================================================================================================
 
-pub fn verify(program_hash: &[u8; 32], inputs: &[u128], outputs: &[u128], proof: &StarkProof) -> Result<bool, String>
-{
+pub fn verify(
+    program_hash: &[u8; 32],
+    inputs: &[u128],
+    outputs: &[u128],
+    proof: &StarkProof,
+) -> Result<bool, String> {
     let options = proof.options();
     let hash_fn = options.hash_fn();
     // 1 ----- Verify proof of work and determine query positions ---------------------------------
@@ -21,13 +20,16 @@ pub fn verify(program_hash: &[u8; 32], inputs: &[u128], outputs: &[u128], proof:
     for layer in degree_proof.layers.iter() {
         layer.root.iter().for_each(|&v| fri_roots.push(v));
     }
-    degree_proof.rem_root.iter().for_each(|&v| fri_roots.push(v));
+    degree_proof
+        .rem_root
+        .iter()
+        .for_each(|&v| fri_roots.push(v));
 
     let mut seed = [0u8; 32];
     hash_fn(&fri_roots, &mut seed);
     let seed = match utils::verify_pow_nonce(seed, proof.pow_nonce(), &options) {
         Ok(seed) => seed,
-        Err(msg) => return Err(msg)
+        Err(msg) => return Err(msg),
     };
 
     let t_positions = utils::compute_query_positions(&seed, proof.domain_size(), options);
@@ -35,16 +37,30 @@ pub fn verify(program_hash: &[u8; 32], inputs: &[u128], outputs: &[u128], proof:
 
     // 2 ----- Verify number of operations in the program -----------------------------------------
     if proof.op_count() < MIN_TRACE_LENGTH as u128 {
-        return Err(String::from("Verification of minimum operation count failed"));
+        return Err(String::from(
+            "Verification of minimum operation count failed",
+        ));
     }
 
     // 3 ----- Verify trace and constraint Merkle proofs ------------------------------------------
-    if !MerkleTree::verify_batch(proof.trace_root(), &t_positions, &proof.trace_proof(), hash_fn) {
+    if !MerkleTree::verify_batch(
+        proof.trace_root(),
+        &t_positions,
+        &proof.trace_proof(),
+        hash_fn,
+    ) {
         return Err(String::from("verification of trace Merkle proof failed"));
     }
 
-    if !MerkleTree::verify_batch(proof.constraint_root(), &c_positions, &proof.constraint_proof(), hash_fn) {
-        return Err(String::from("verification of constraint Merkle proof failed"));
+    if !MerkleTree::verify_batch(
+        proof.constraint_root(),
+        &c_positions,
+        &proof.constraint_proof(),
+        hash_fn,
+    ) {
+        return Err(String::from(
+            "verification of constraint Merkle proof failed",
+        ));
     }
 
     // 4 ----- Compute constraint evaluations at DEEP point z -------------------------------------
@@ -56,7 +72,7 @@ pub fn verify(program_hash: &[u8; 32], inputs: &[u128], outputs: &[u128], proof:
         ConstraintEvaluator::from_proof(proof, program_hash, inputs, outputs),
         proof.get_state_at_z1(),
         proof.get_state_at_z2(),
-        z
+        z,
     );
 
     // 5 ----- Compute composition polynomial evaluations -----------------------------------------
@@ -65,20 +81,42 @@ pub fn verify(program_hash: &[u8; 32], inputs: &[u128], outputs: &[u128], proof:
 
     // compute composition values separately for trace and constraints, and then add them together
     let t_composition = compose_registers(&proof, &t_positions, z, &coefficients);
-    let c_composition = compose_constraints(&proof, &t_positions, &c_positions, z, constraint_evaluation_at_z, &coefficients);
-    let evaluations = t_composition.iter().zip(c_composition).map(|(&t, c)| field::add(t, c)).collect::<Vec<u128>>();
-    
+    let c_composition = compose_constraints(
+        &proof,
+        &t_positions,
+        &c_positions,
+        z,
+        constraint_evaluation_at_z,
+        &coefficients,
+    );
+    let evaluations = t_composition
+        .iter()
+        .zip(c_composition)
+        .map(|(&t, c)| field::add(t, c))
+        .collect::<Vec<u128>>();
+
     // 6 ----- Verify low-degree proof -------------------------------------------------------------
     let max_degree = utils::get_composition_degree(proof.trace_length());
-    return match fri::verify(&degree_proof, &evaluations, &t_positions, max_degree, options) {
+    return match fri::verify(
+        &degree_proof,
+        &evaluations,
+        &t_positions,
+        max_degree,
+        options,
+    ) {
         Ok(result) => Ok(result),
-        Err(msg) => Err(format!("verification of low-degree proof failed: {}", msg))
-    }
+        Err(msg) => Err(format!("verification of low-degree proof failed: {}", msg)),
+    };
 }
 
 // HELPER FUNCTIONS
 // ================================================================================================
-fn evaluate_constraints(evaluator: ConstraintEvaluator, state1: TraceState, state2: TraceState, x: u128) -> u128 {
+fn evaluate_constraints(
+    evaluator: ConstraintEvaluator,
+    state1: TraceState,
+    state2: TraceState,
+    x: u128,
+) -> u128 {
     let (i_value, f_value) = evaluator.evaluate_boundaries(&state1, x);
     let t_value = evaluator.evaluate_transition_at(&state1, &state2, x);
 
@@ -91,14 +129,21 @@ fn evaluate_constraints(evaluator: ConstraintEvaluator, state1: TraceState, stat
     result = field::add(result, field::div(f_value, z));
 
     // Z(x) = (x^steps - 1) / (x - x_at_last_step)
-    let z = field::div(field::sub(field::exp(x, evaluator.trace_length() as u128), field::ONE), z);
+    let z = field::div(
+        field::sub(field::exp(x, evaluator.trace_length() as u128), field::ONE),
+        z,
+    );
     result = field::add(result, field::div(t_value, z));
 
     return result;
 }
 
-fn compose_registers(proof: &StarkProof, positions: &[usize], z: u128, cc: &CompositionCoefficients) -> Vec<u128>
-{    
+fn compose_registers(
+    proof: &StarkProof,
+    positions: &[usize],
+    z: u128,
+    cc: &CompositionCoefficients,
+) -> Vec<u128> {
     let lde_root = field::get_root_of_unity(proof.domain_size());
     let trace_root = field::get_root_of_unity(proof.trace_length());
     let next_z = field::mul(z, trace_root);
@@ -112,7 +157,7 @@ fn compose_registers(proof: &StarkProof, positions: &[usize], z: u128, cc: &Comp
     let mut result = Vec::with_capacity(evaluations.len());
     for (registers, &position) in evaluations.into_iter().zip(positions) {
         let x = field::exp(lde_root, position as u128);
-        
+
         let mut composition = field::ZERO;
         for (i, &value) in registers.iter().enumerate() {
             // compute T1(x) = (T(x) - T(z)) / (x - z)
@@ -137,7 +182,14 @@ fn compose_registers(proof: &StarkProof, positions: &[usize], z: u128, cc: &Comp
     return result;
 }
 
-fn compose_constraints(proof: &StarkProof, t_positions: &[usize], c_positions: &[usize], z: u128, evaluation_at_z: u128, cc: &CompositionCoefficients) -> Vec<u128> {
+fn compose_constraints(
+    proof: &StarkProof,
+    t_positions: &[usize],
+    c_positions: &[usize],
+    z: u128,
+    evaluation_at_z: u128,
+    cc: &CompositionCoefficients,
+) -> Vec<u128> {
     // build constraint evaluation values from the leaves of constraint Merkle proof
     let mut evaluations: Vec<u128> = Vec::with_capacity(t_positions.len());
     let leaves = proof.constraint_proof().values;

@@ -1,13 +1,15 @@
-use crate::utils::hasher::{ apply_sbox, apply_mds, apply_inv_mds };
-use super::{
-    field, are_equal, EvaluationResult, enforce_stack_copy,
-    HASH_STATE_WIDTH
-};
+use super::{are_equal, enforce_stack_copy, field, EvaluationResult, HASH_STATE_WIDTH};
+use crate::utils::hasher::{apply_inv_mds, apply_mds, apply_sbox};
 
 /// Evaluates constraints for a single round of a modified Rescue hash function. Hash state is
 /// assumed to be in the first 6 registers of user stack; the rest of the stack does not change.
-pub fn enforce_rescr(result: &mut [u128], old_stack: &[u128], new_stack: &[u128], ark: &[u128], op_flag: u128)
-{
+pub fn enforce_rescr(
+    result: &mut [u128],
+    old_stack: &[u128],
+    new_stack: &[u128],
+    ark: &[u128],
+    op_flag: u128,
+) {
     // evaluate the first half of Rescue round
     let mut old_state = [field::ZERO; HASH_STATE_WIDTH];
     old_state.copy_from_slice(&old_stack[..HASH_STATE_WIDTH]);

@@ -1,9 +1,14 @@
-use sp_std::ops::Range;
-use sp_std::convert::TryInto;
-use rand::prelude::*;
-use rand::distributions::{ Distribution, Uniform };
-use crate::utils::{ uninit_vector };
-use sp_std::vec::Vec;
+use crate::utils::uninit_vector;
+use alloc::string::{String, ToString};
+use b2sum_rs::Blake2bSum;
+use crypto::hashes::blake2b::Blake2b256;
+use rand::{
+    distributions::{Distribution, Uniform},
+    prelude::*,
+};
+use sha2::{Digest, Sha256};
+use sp_std::{convert::TryInto, ops::Range, vec::Vec};
+
 // use wasm_bindgen_test::console_log;
 // CONSTANTS
 // ================================================================================================
@@ -27,7 +32,7 @@ pub const ONE: u128 = 1;
 /// Computes (a + b) % m; a and b are assumed to be valid field elements.
 pub fn add(a: u128, b: u128) -> u128 {
     let z = M - b;
-    return if a < z { M - z + a } else { a - z};
+    return if a < z { M - z + a } else { a - z };
 }
 
 /// Computes (a - b) % m; a and b are assumed to be valid field elements.
@@ -37,37 +42,39 @@ pub fn sub(a: u128, b: u128) -> u128 {
 
 /// Computes (a * b) % m; a and b are assumed to be valid field elements.
 pub fn mul(a: u128, b: u128) -> u128 {
-
-    let (x0, x1, x2) = mul_128x64(a, (b >> 64) as u64);         // x = a * b_hi
-    let (mut x0, mut x1, x2) = mul_reduce(x0, x1, x2);          // x = x - (x >> 128) * m
+    let (x0, x1, x2) = mul_128x64(a, (b >> 64) as u64); // x = a * b_hi
+    let (mut x0, mut x1, x2) = mul_reduce(x0, x1, x2); // x = x - (x >> 128) * m
     if x2 == 1 {
         // if there was an overflow beyond 128 bits, subtract
-        // modulus from the result to make sure it fits into 
+        // modulus from the result to make sure it fits into
         // 128 bits; this can potentially be removed in favor
         // of checking overflow later
-        let (t0, t1) = sub_modulus(x0, x1);                     // x = x - m
-        x0 = t0; x1 = t1;
+        let (t0, t1) = sub_modulus(x0, x1); // x = x - m
+        x0 = t0;
+        x1 = t1;
     }
 
-    let (y0, y1, y2) = mul_128x64(a, b as u64);                 // y = a * b_lo
+    let (y0, y1, y2) = mul_128x64(a, b as u64); // y = a * b_lo
 
-    let (mut y1, carry) = add64_with_carry(y1, x0, 0);          // y = y + (x << 64)
+    let (mut y1, carry) = add64_with_carry(y1, x0, 0); // y = y + (x << 64)
     let (mut y2, y3) = add64_with_carry(y2, x1, carry);
     if y3 == 1 {
         // if there was an overflow beyond 192 bits, subtract
         // modulus * 2^64 from the result to make sure it fits
         // into 192 bits; this can potentially replace the
         // previous overflow check (but needs to be proven)
-        let (t0, t1) = sub_modulus(y1, y2);                     // y = y - (m << 64)
-        y1 = t0; y2 = t1;
+        let (t0, t1) = sub_modulus(y1, y2); // y = y - (m << 64)
+        y1 = t0;
+        y2 = t1;
     }
-    
-    let (mut z0, mut z1, z2) = mul_reduce(y0, y1, y2);          // z = y - (y >> 128) * m
+
+    let (mut z0, mut z1, z2) = mul_reduce(y0, y1, y2); // z = y - (y >> 128) * m
 
     // make sure z is smaller than m
     if z2 == 1 || (z1 == (M >> 64) as u64 && z0 >= (M as u64)) {
-        let (t0, t1) = sub_modulus(z0, z1);                     // z = z - m
-        z0 = t0; z1 = t1;
+        let (t0, t1) = sub_modulus(z0, z1); // z = z - m
+        z0 = t0;
+        z1 = t1;
     }
 
     return ((z1 as u128) << 64) + (z0 as u128);
@@ -82,7 +89,9 @@ pub fn mul_acc(a: &mut [u128], b: &[u128], c: u128) {
 
 /// Computes y such that (x * y) % m = 1; x is assumed to be a valid field element.
 pub fn inv(x: u128) -> u128 {
-    if x == 0 { return 0 };
+    if x == 0 {
+        return 0;
+    };
 
     // initialize v, a, u, and d variables
     let mut v = M;
@@ -90,8 +99,7 @@ pub fn inv(x: u128) -> u128 {
     let (mut u0, mut u1, mut u2) = if x & 1 == 1 {
         // u = x
         (x as u64, (x >> 64) as u64, 0)
-    }
-    else {
+    } else {
         // u = x + m
         add_192x192(x as u64, (x >> 64) as u64, 0, M as u64, (M >> 64) as u64, 0)
     };
@@ -100,20 +108,27 @@ pub fn inv(x: u128) -> u128 {
 
     // compute the inverse
     while v != 1 {
-        while u2 > 0 || ((u0 as u128) + ((u1 as u128) << 64)) > v { // u > v
+        while u2 > 0 || ((u0 as u128) + ((u1 as u128) << 64)) > v {
+            // u > v
             // u = u - v
             let (t0, t1, t2) = sub_192x192(u0, u1, u2, v as u64, (v >> 64) as u64, 0);
-            u0 = t0; u1 = t1; u2 = t2;
-            
+            u0 = t0;
+            u1 = t1;
+            u2 = t2;
+
             // d = d + a
             let (t0, t1, t2) = add_192x192(d0, d1, d2, a0, a1, a2);
-            d0 = t0; d1 = t1; d2 = t2;
-            
+            d0 = t0;
+            d1 = t1;
+            d2 = t2;
+
             while u0 & 1 == 0 {
                 if d0 & 1 == 1 {
                     // d = d + m
                     let (t0, t1, t2) = add_192x192(d0, d1, d2, M as u64, (M >> 64) as u64, 0);
-                    d0 = t0; d1 = t1; d2 = t2;
+                    d0 = t0;
+                    d1 = t1;
+                    d2 = t2;
                 }
 
                 // u = u >> 1
@@ -130,16 +145,20 @@ pub fn inv(x: u128) -> u128 {
 
         // v = v - u (u is less than v at this point)
         v = v - ((u0 as u128) + ((u1 as u128) << 64));
-        
+
         // a = a + d
         let (t0, t1, t2) = add_192x192(a0, a1, a2, d0, d1, d2);
-        a0 = t0; a1 = t1; a2 = t2;
+        a0 = t0;
+        a1 = t1;
+        a2 = t2;
 
         while v & 1 == 0 {
             if a0 & 1 == 1 {
                 // a = a + m
                 let (t0, t1, t2) = add_192x192(a0, a1, a2, M as u64, (M >> 64) as u64, 0);
-                a0 = t0; a1 = t1; a2 = t2;
+                a0 = t0;
+                a1 = t1;
+                a2 = t2;
             }
 
             v = v >> 1;
@@ -155,7 +174,9 @@ pub fn inv(x: u128) -> u128 {
     let mut a = (a0 as u128) + ((a1 as u128) << 64);
     while a2 > 0 || a >= M {
         let (t0, t1, t2) = sub_192x192(a0, a1, a2, M as u64, (M >> 64) as u64, 0);
-        a0 = t0; a1 = t1; a2 = t2;
+        a0 = t0;
+        a1 = t1;
+        a2 = t2;
         a = (a0 as u128) + ((a1 as u128) << 64);
     }
 
@@ -184,8 +205,7 @@ pub fn inv_many_fill(values: &[u128], result: &mut [u128]) {
     for i in (0..values.len()).rev() {
         if values[i] == ZERO {
             result[i] = ZERO;
-        }
-        else {
+        } else {
             result[i] = mul(last, result[i]);
             last = mul(last, values[i]);
         }
@@ -200,8 +220,11 @@ pub fn div(a: u128, b: u128) -> u128 {
 
 /// Computes (b^p) % m; b and p are assumed to be valid field elements.
 pub fn exp(b: u128, p: u128) -> u128 {
-    if b == 0 { return 0; }
-    else if p == 0 { return 1; }
+    if b == 0 {
+        return 0;
+    } else if p == 0 {
+        return 1;
+    }
 
     let mut r = 1;
     let mut b = b;
@@ -236,17 +259,303 @@ pub fn get_root_of_unity(order: usize) -> u128 {
 
 /// Generates a vector with values [1, b, b^2, b^3, b^4, ..., b^length].
 pub fn get_power_series(b: u128, length: usize) -> Vec<u128> {
-
     let mut result = uninit_vector(length);
-
 
     result[0] = ONE;
     for i in 1..result.len() {
         result[i] = mul(result[i - 1], b);
-
-    }    
+    }
 
     return result;
+}
+
+pub fn kvalid_a(
+    x1: u128,
+    x2: u128,
+    x3: u128,
+    x4: u128,
+    x5: u128,
+    content: u128,
+    ctype_1: u128,
+    ctype_2: u128,
+    ascii: u128,
+) -> u128 {
+    let prefix = String::from("{\"kilt:ctype:");
+    let joint_1 = String::from('#');
+    let joint_2 = String::from("\":");
+    let suffice = String::from('}');
+
+    let zero = String::from("0");
+    let mut ctype_1 = format!("{:x}", ctype_1);
+    let mut i1 = 32 - ctype_1.len();
+    while i1 > 0 {
+        ctype_1 = zero.clone() + &ctype_1;
+        i1 -= 1;
+    }
+    let mut ctype_2 = format!("{:x}", ctype_2);
+    let mut i2 = 32 - ctype_2.len();
+    while i2 > 0 {
+        ctype_2 = zero.clone() + &ctype_2;
+        i2 -= 1;
+    }
+    let y0 = String::from("0x");
+
+    let ctype_hash = y0 + &ctype_1 + &ctype_2;
+
+    let ascii_string = format!("{:x}", ascii);
+    let ascii_vec = hex::decode(ascii_string.clone());
+    if ascii_vec.is_err() {
+        return 0;
+    } else if String::from_utf8(ascii_vec.clone().unwrap()).is_err() {
+        return 0;
+    } else {
+        let ascii_final = String::from_utf8(ascii_vec.unwrap()).unwrap();
+
+        let origin_string = prefix
+            + &ctype_hash
+            + &joint_1
+            + &ascii_final
+            + &joint_2
+            + &content.to_string()
+            + &suffice;
+
+        let mut x1 = format!("{:x}", x1);
+        let mut x2 = format!("{:x}", x2);
+        let mut x3 = format!("{:x}", x3);
+        let mut x4 = format!("{:x}", x4);
+        let mut x5 = format!("{:x}", x5);
+        let y0 = String::from("0x");
+
+        if x1.len() % 2 != 0 {
+            x1 = zero.clone() + &x1;
+        };
+        while x1.len() < 8 {
+            x1 = zero.clone() + &x1;
+        }
+        if x2.len() % 2 != 0 {
+            x2 = zero.clone() + &x2;
+        };
+        while x2.len() < 4 {
+            x2 = zero.clone() + &x2;
+        }
+        if x3.len() % 2 != 0 {
+            x3 = zero.clone() + &x3;
+        };
+        while x3.len() < 4 {
+            x3 = zero.clone() + &x3;
+        }
+        if x4.len() % 2 != 0 {
+            x4 = zero.clone() + &x4;
+        };
+        while x4.len() < 4 {
+            x4 = zero.clone() + &x4;
+        }
+        if x5.len() % 2 != 0 {
+            x5 = zero.clone() + &x5;
+        };
+        while x5.len() < 12 {
+            x5 = zero.clone() + &x5;
+        }
+
+        let hyphen = String::from('-');
+        let y4 = x1 + &hyphen + &x2 + &hyphen + &x3 + &hyphen + &x4 + &hyphen + &x5;
+        let mut hasher = Blake2b256::digest(origin_string.as_bytes());
+        let mut whole = format!("{:x}", hasher.clone());
+
+        let go_to_hash = y4 + &y0 + &whole;
+        let mut hasher = Blake2b256::digest(go_to_hash.as_bytes());
+        let mut whole = format!("{:x}", hasher.clone());
+
+        let head = &whole[0..32];
+        let rear = &whole[32..];
+        let i = u128::from_str_radix(head, 16).unwrap();
+        return i;
+    }
+}
+
+pub fn kvalid_b(
+    x1: u128,
+    x2: u128,
+    x3: u128,
+    x4: u128,
+    x5: u128,
+    content: u128,
+    ctype_1: u128,
+    ctype_2: u128,
+    ascii: u128,
+) -> u128 {
+    let prefix = String::from("{\"kilt:ctype:");
+    let joint_1 = String::from('#');
+    let joint_2 = String::from("\":");
+    let suffice = String::from('}');
+
+    let zero = String::from("0");
+    let mut ctype_1 = format!("{:x}", ctype_1);
+    let mut i1 = 32 - ctype_1.len();
+    while i1 > 0 {
+        ctype_1 = zero.clone() + &ctype_1;
+        i1 -= 1;
+    }
+    let mut ctype_2 = format!("{:x}", ctype_2);
+    let mut i2 = 32 - ctype_2.len();
+    while i2 > 0 {
+        ctype_2 = zero.clone() + &ctype_2;
+        i2 -= 1;
+    }
+    let y0 = String::from("0x");
+
+    let ctype_hash = y0 + &ctype_1 + &ctype_2;
+
+    let ascii_string = format!("{:x}", ascii);
+    let ascii_vec = hex::decode(ascii_string.clone());
+    if ascii_vec.is_err() {
+        return 0;
+    } else if String::from_utf8(ascii_vec.clone().unwrap()).is_err() {
+        return 0;
+    } else {
+        let ascii_final = String::from_utf8(ascii_vec.unwrap()).unwrap();
+        let origin_string = prefix
+            + &ctype_hash
+            + &joint_1
+            + &ascii_final
+            + &joint_2
+            + &content.to_string()
+            + &suffice;
+
+        let mut x1 = format!("{:x}", x1);
+        let mut x2 = format!("{:x}", x2);
+        let mut x3 = format!("{:x}", x3);
+        let mut x4 = format!("{:x}", x4);
+        let mut x5 = format!("{:x}", x5);
+        let y0 = String::from("0x");
+
+        if x1.len() % 2 != 0 {
+            x1 = zero.clone() + &x1;
+        };
+        while x1.len() < 8 {
+            x1 = zero.clone() + &x1;
+        }
+
+        if x2.len() % 2 != 0 {
+            x2 = zero.clone() + &x2;
+        };
+
+        while x2.len() < 4 {
+            x2 = zero.clone() + &x2;
+        }
+        if x3.len() % 2 != 0 {
+            x3 = zero.clone() + &x3;
+        };
+        while x3.len() < 4 {
+            x3 = zero.clone() + &x3;
+        }
+        if x4.len() % 2 != 0 {
+            x4 = zero.clone() + &x4;
+        };
+        while x4.len() < 4 {
+            x4 = zero.clone() + &x4;
+        }
+        if x5.len() % 2 != 0 {
+            x5 = zero.clone() + &x5;
+        };
+        while x5.len() < 12 {
+            x5 = zero.clone() + &x5;
+        }
+
+        let hyphen = String::from('-');
+        let y4 = x1 + &hyphen + &x2 + &hyphen + &x3 + &hyphen + &x4 + &hyphen + &x5;
+
+        let mut hasher = Blake2b256::digest(origin_string.as_bytes());
+        let mut whole = format!("{:x}", hasher.clone());
+
+        let go_to_hash = y4 + &y0 + &whole;
+        let mut hasher = Blake2b256::digest(go_to_hash.as_bytes());
+        let mut whole = format!("{:x}", hasher.clone());
+
+        let head = &whole[0..32];
+        let rear = &whole[32..];
+
+        // let i = u128::from_str_radix(head,16).unwrap();
+        let i2 = u128::from_str_radix(rear, 16).unwrap();
+
+        return i2;
+    }
+}
+
+pub fn khash_a(hash_in_khash: &Vec<u128>, n: u32) -> u128 {
+    let zero = String::from("0");
+    let mut hex_list: Vec<Vec<u8>> = Vec::new();
+    let mut concat_saltedhash: Vec<u8> = Vec::new();
+    assert_eq!(hash_in_khash.len() / 2, n as usize);
+    for i in 0..n {
+        let mut x1 = format!("{:x}", hash_in_khash[(i * 2) as usize]);
+        let mut y1 = format!("{:x}", hash_in_khash[(i * 2 + 1) as usize]);
+
+        let mut i = 32 - x1.len();
+        while i > 0 {
+            x1 = zero.clone() + &x1;
+            i -= 1;
+        }
+
+        let mut i = 32 - y1.len();
+        while i > 0 {
+            y1 = zero.clone() + &y1;
+            i -= 1;
+        }
+        hex_list.push(hex::decode(x1 + &y1).unwrap());
+    }
+    hex_list.sort();
+
+    for i in 0..n {
+        concat_saltedhash.append(&mut hex_list[i as usize]);
+    }
+
+    let mut context = Blake2bSum::new(32);
+    let mut hash = context.read_bytes(&concat_saltedhash);
+    let mut bytes = Blake2bSum::as_bytes(&hash);
+    let whole = hex::encode(bytes);
+
+    let head = &whole[0..32];
+    let i = u128::from_str_radix(head, 16).unwrap();
+    return i;
+}
+
+pub fn khash_b(hash_in_khash: &Vec<u128>, n: u32) -> u128 {
+    let zero = String::from("0");
+    let mut hex_list: Vec<Vec<u8>> = Vec::new();
+    let mut concat_saltedhash: Vec<u8> = Vec::new();
+    assert_eq!(hash_in_khash.len() / 2, n as usize);
+    for i in 0..n {
+        let mut x1 = format!("{:x}", hash_in_khash[(i * 2) as usize]);
+        let mut y1 = format!("{:x}", hash_in_khash[(i * 2 + 1) as usize]);
+
+        let mut i = 32 - x1.len();
+        while i > 0 {
+            x1 = zero.clone() + &x1;
+            i -= 1;
+        }
+
+        let mut i = 32 - y1.len();
+        while i > 0 {
+            y1 = zero.clone() + &y1;
+            i -= 1;
+        }
+        hex_list.push(hex::decode(x1 + &y1).unwrap());
+    }
+    hex_list.sort();
+
+    for i in 0..n {
+        concat_saltedhash.append(&mut hex_list[i as usize]);
+    }
+
+    let mut context = Blake2bSum::new(32);
+    let mut hash = context.read_bytes(&concat_saltedhash);
+    let mut bytes = Blake2bSum::as_bytes(&hash);
+    let whole = hex::encode(bytes);
+
+    let rear = &whole[32..];
+    let i = u128::from_str_radix(rear, 16).unwrap();
+    return i;
 }
 
 // RANDOMNESS
@@ -282,7 +591,7 @@ pub fn prng_vector(seed: [u8; 32], length: usize) -> Vec<u128> {
 
 // TYPE CONVERSIONS
 // --------------------------------------------------------------------------------------------
-pub fn from_bytes(bytes: &[u8]) -> u128 { 
+pub fn from_bytes(bytes: &[u8]) -> u128 {
     return u128::from_le_bytes(bytes.try_into().unwrap());
 }
 
@@ -346,8 +655,8 @@ pub const fn add64_with_carry(a: u64, b: u64, carry: u64) -> (u64, u64) {
 #[cfg(test)]
 mod tests {
 
+    use num_bigint::BigUint;
     use sp_std::convert::TryInto;
-    use num_bigint::{ BigUint };
 
     #[test]
     fn add() {
@@ -388,6 +697,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore]
     fn mul() {
         // identity
         let r: u128 = super::rand();

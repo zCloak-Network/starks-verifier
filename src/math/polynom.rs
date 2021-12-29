@@ -1,9 +1,8 @@
-use sp_std::mem;
-use crate::math::{ field, fft };
-use crate::utils::{ uninit_vector, filled_vector };
-use sp_std::vec;
-use sp_std::vec::Vec;
-
+use crate::{
+    math::{fft, field},
+    utils::{filled_vector, uninit_vector},
+};
+use sp_std::{mem, vec, vec::Vec};
 
 // POLYNOMIAL EVALUATION
 // ================================================================================================
@@ -21,7 +20,7 @@ pub fn eval(p: &[u128], x: u128) -> u128 {
 
 /// Evaluates polynomial `p` using FFT algorithm; the evaluation is done in-place, meaning
 /// `p` is updated with results of the evaluation.
-/// 
+///
 /// If `unpermute` parameter is set to false, the evaluations will be left in permuted state.
 pub fn eval_fft(p: &mut [u128], unpermute: bool) {
     let g = field::get_root_of_unity(p.len());
@@ -32,7 +31,7 @@ pub fn eval_fft(p: &mut [u128], unpermute: bool) {
 /// Evaluates polynomial `p` using FFT algorithm; the evaluation is done in-place, meaning
 /// `p` is updated with results of the evaluation. Unlike the previous function, this function
 /// does not generate twiddles internally. Thus, the twiddles must be supplied as a parameter.
-/// 
+///
 /// If `unpermute` parameter is set to false, the evaluations will be left in permuted state.
 pub fn eval_fft_twiddles(p: &mut [u128], twiddles: &[u128], unpermute: bool) {
     debug_assert!(p.len() == twiddles.len() * 2, "Invalid number of twiddles");
@@ -48,7 +47,10 @@ pub fn eval_fft_twiddles(p: &mut [u128], twiddles: &[u128], unpermute: bool) {
 
 /// Uses Lagrange interpolation to build a polynomial from X and Y coordinates.
 pub fn interpolate(xs: &[u128], ys: &[u128]) -> Vec<u128> {
-    debug_assert!(xs.len() == ys.len(), "Number of X and Y coordinates must be the same");
+    debug_assert!(
+        xs.len() == ys.len(),
+        "Number of X and Y coordinates must be the same"
+    );
 
     let roots = get_zero_roots(xs);
     let mut divisor = [field::ZERO, field::ONE];
@@ -79,7 +81,7 @@ pub fn interpolate(xs: &[u128], ys: &[u128]) -> Vec<u128> {
 
 /// Uses FFT algorithm to interpolate a polynomial from provided values `v`; the interpolation
 /// is done in-place, meaning `v` is updated with polynomial coefficients.
-/// 
+///
 /// If `unpermute` parameter is set to false, the coefficients will be left in permuted state.
 pub fn interpolate_fft(v: &mut [u128], unpermute: bool) {
     let g = field::get_root_of_unity(v.len());
@@ -91,7 +93,7 @@ pub fn interpolate_fft(v: &mut [u128], unpermute: bool) {
 /// is done in-place, meaning `v` is updated with polynomial coefficients. Unlike the previous
 /// function, this function does not generate inverse twiddles internally. Thus, the twiddles
 /// must be supplied as a parameter.
-/// 
+///
 /// If `unpermute` parameter is set to false, the evaluations will be left in permuted state.
 pub fn interpolate_fft_twiddles(v: &mut [u128], inv_twiddles: &[u128], unpermute: bool) {
     // TODO: don't hard-code num_threads
@@ -157,7 +159,6 @@ pub fn mul_by_const(p: &[u128], k: u128) -> Vec<u128> {
 /// Divides polynomial `a` by polynomial `b`; if the polynomials don't divide evenly,
 /// the remainder is ignored.
 pub fn div(a: &[u128], b: &[u128]) -> Vec<u128> {
-    
     let mut apos = degree_of(a);
     let mut a = a.to_vec();
 
@@ -203,7 +204,6 @@ pub fn syn_div_in_place(a: &mut [u128], b: u128) {
 /// Synthetic division method and stores the result in `a`; if the polynomials don't divide evenly,
 /// the remainder is ignored.
 pub fn syn_div_expanded_in_place(a: &mut [u128], degree: usize, exceptions: &[u128]) {
-
     // allocate space for the result
     let mut result = filled_vector(a.len(), a.len() + exceptions.len(), field::ZERO);
 
@@ -216,12 +216,13 @@ pub fn syn_div_expanded_in_place(a: &mut [u128], degree: usize, exceptions: &[u1
 
     // multiply result by (x - exceptions[i]) in place
     for &exception in exceptions {
-
         // exception term is negative
         let exception = field::neg(exception);
 
         // extend length of result since we are raising degree
-        unsafe { result.set_len(result.len() + 1); }
+        unsafe {
+            result.set_len(result.len() + 1);
+        }
 
         let mut next_term = result[0];
         result[0] = field::ZERO;
@@ -235,7 +236,9 @@ pub fn syn_div_expanded_in_place(a: &mut [u128], degree: usize, exceptions: &[u1
     a[..(degree_offset + exceptions.len())].copy_from_slice(&result[degree..]);
 
     // fill the rest of the result with 0
-    for i in (degree_offset + exceptions.len())..a.len() { a[i] = field::ZERO; }
+    for i in (degree_offset + exceptions.len())..a.len() {
+        a[i] = field::ZERO;
+    }
 }
 
 // DEGREE INFERENCE
@@ -244,7 +247,9 @@ pub fn syn_div_expanded_in_place(a: &mut [u128], degree: usize, exceptions: &[u1
 /// Returns degree of the polynomial `poly`
 pub fn degree_of(poly: &[u128]) -> usize {
     for i in (0..poly.len()).rev() {
-        if poly[i] != field::ZERO { return i; }
+        if poly[i] != field::ZERO {
+            return i;
+        }
     }
     return 0;
 }
@@ -252,7 +257,10 @@ pub fn degree_of(poly: &[u128]) -> usize {
 /// Returns degree of a polynomial with which evaluates to `evaluations` over the domain of
 /// corresponding roots of unity.
 pub fn infer_degree(evaluations: &[u128]) -> usize {
-    assert!(evaluations.len().is_power_of_two(), "number of evaluations must be a power of 2");
+    assert!(
+        evaluations.len().is_power_of_two(),
+        "number of evaluations must be a power of 2"
+    );
     let mut poly = evaluations.to_vec();
     interpolate_fft(&mut poly, true);
     return degree_of(&poly);
@@ -263,7 +271,7 @@ pub fn infer_degree(evaluations: &[u128]) -> usize {
 fn get_zero_roots(xs: &[u128]) -> Vec<u128> {
     let mut n = xs.len() + 1;
     let mut result = uninit_vector(n);
-    
+
     n -= 1;
     result[n] = field::ONE;
 
@@ -283,13 +291,17 @@ fn get_zero_roots(xs: &[u128]) -> Vec<u128> {
 #[cfg(test)]
 mod tests {
 
-    use crate::math::{ field };
-    use crate::utils::remove_leading_zeros;
+    use crate::{math::field, utils::remove_leading_zeros};
 
     #[test]
     fn eval() {
         let x: u128 = 11269864713250585702;
-        let poly: [u128; 4] = [384863712573444386, 7682273369345308472, 13294661765012277990, 16234810094004944758];
+        let poly: [u128; 4] = [
+            384863712573444386,
+            7682273369345308472,
+            13294661765012277990,
+            16234810094004944758,
+        ];
 
         assert_eq!(0, super::eval(&[], x));
 
@@ -297,22 +309,33 @@ mod tests {
         assert_eq!(poly[0], super::eval(&poly[..1], x));
 
         // degree 1
-        assert_eq!(field::add(poly[0], field::mul(poly[1], x)), super::eval(&poly[..2], x));
+        assert_eq!(
+            field::add(poly[0], field::mul(poly[1], x)),
+            super::eval(&poly[..2], x)
+        );
 
         // degree 2
         let x2 = field::exp(x, 2);
-        assert_eq!(field::add(
-            poly[0], field::add(
-            field::mul(poly[1], x), 
-            field::mul(poly[2], x2))), super::eval(&poly[..3], x));
+        assert_eq!(
+            field::add(
+                poly[0],
+                field::add(field::mul(poly[1], x), field::mul(poly[2], x2))
+            ),
+            super::eval(&poly[..3], x)
+        );
 
         // degree 3
         let x3 = field::exp(x, 3);
-        assert_eq!(field::add(
-            poly[0], field::add(
-            field::mul(poly[1], x), field::add(
-            field::mul(poly[2], x2),
-            field::mul(poly[3], x3)))), super::eval(&poly, x));
+        assert_eq!(
+            field::add(
+                poly[0],
+                field::add(
+                    field::mul(poly[1], x),
+                    field::add(field::mul(poly[2], x2), field::mul(poly[3], x3))
+                )
+            ),
+            super::eval(&poly, x)
+        );
     }
 
     #[test]
@@ -328,15 +351,26 @@ mod tests {
 
         // evaluate polynomial using simple evaluation
         let roots = field::get_power_series(field::get_root_of_unity(n), n);
-        let y2 = roots.iter().map(|&x| super::eval(&poly, x)).collect::<Vec<u128>>();
-        
+        let y2 = roots
+            .iter()
+            .map(|&x| super::eval(&poly, x))
+            .collect::<Vec<u128>>();
+
         assert_eq!(y1, y2);
     }
 
     #[test]
     fn add() {
-        let poly1: [u128; 3] = [384863712573444386, 7682273369345308472, 13294661765012277990];
-        let poly2: [u128; 3] = [9918505539874556741, 16401861429499852246, 12181445947541805654];
+        let poly1: [u128; 3] = [
+            384863712573444386,
+            7682273369345308472,
+            13294661765012277990,
+        ];
+        let poly2: [u128; 3] = [
+            9918505539874556741,
+            16401861429499852246,
+            12181445947541805654,
+        ];
 
         // same degree
         let pr = vec![
@@ -350,7 +384,7 @@ mod tests {
         let pr = vec![
             field::add(poly1[0], poly2[0]),
             field::add(poly1[1], poly2[1]),
-            poly2[2]
+            poly2[2],
         ];
         assert_eq!(pr, super::add(&poly1[..2], &poly2));
 
@@ -358,15 +392,23 @@ mod tests {
         let pr = vec![
             field::add(poly1[0], poly2[0]),
             field::add(poly1[1], poly2[1]),
-            poly1[2]
+            poly1[2],
         ];
         assert_eq!(pr, super::add(&poly1, &poly2[..2]));
     }
 
     #[test]
     fn sub() {
-        let poly1: [u128; 3] = [384863712573444386, 7682273369345308472, 13294661765012277990];
-        let poly2: [u128; 3] = [9918505539874556741, 16401861429499852246, 12181445947541805654];
+        let poly1: [u128; 3] = [
+            384863712573444386,
+            7682273369345308472,
+            13294661765012277990,
+        ];
+        let poly2: [u128; 3] = [
+            9918505539874556741,
+            16401861429499852246,
+            12181445947541805654,
+        ];
 
         // same degree
         let pr = vec![
@@ -380,7 +422,7 @@ mod tests {
         let pr = vec![
             field::sub(poly1[0], poly2[0]),
             field::sub(poly1[1], poly2[1]),
-            field::sub(0,        poly2[2]),
+            field::sub(0, poly2[2]),
         ];
         assert_eq!(pr, super::sub(&poly1[..2], &poly2));
 
@@ -395,53 +437,98 @@ mod tests {
 
     #[test]
     fn mul() {
-        let poly1: [u128; 3] = [384863712573444386, 7682273369345308472, 13294661765012277990];
-        let poly2: [u128; 3] = [9918505539874556741, 16401861429499852246, 12181445947541805654];
+        let poly1: [u128; 3] = [
+            384863712573444386,
+            7682273369345308472,
+            13294661765012277990,
+        ];
+        let poly2: [u128; 3] = [
+            9918505539874556741,
+            16401861429499852246,
+            12181445947541805654,
+        ];
 
         // same degree
         let pr = vec![
             field::mul(poly1[0], poly2[0]),
-            field::add(field::mul(poly1[0], poly2[1]), field::mul(poly2[0], poly1[1])),
+            field::add(
+                field::mul(poly1[0], poly2[1]),
+                field::mul(poly2[0], poly1[1]),
+            ),
             field::add(
                 field::mul(poly1[1], poly2[1]),
-                field::add(field::mul(poly1[2], poly2[0]), field::mul(poly2[2], poly1[0]))
+                field::add(
+                    field::mul(poly1[2], poly2[0]),
+                    field::mul(poly2[2], poly1[0]),
+                ),
             ),
-            field::add(field::mul(poly1[2], poly2[1]), field::mul(poly2[2], poly1[1])),
-            field::mul(poly1[2], poly2[2])
-            ];
+            field::add(
+                field::mul(poly1[2], poly2[1]),
+                field::mul(poly2[2], poly1[1]),
+            ),
+            field::mul(poly1[2], poly2[2]),
+        ];
         assert_eq!(pr, super::mul(&poly1, &poly2));
 
         // poly1 is lower degree
         let pr = vec![
             field::mul(poly1[0], poly2[0]),
-            field::add(field::mul(poly1[0], poly2[1]), field::mul(poly2[0], poly1[1])),
-            field::add(field::mul(poly1[0], poly2[2]), field::mul(poly2[1], poly1[1])),
+            field::add(
+                field::mul(poly1[0], poly2[1]),
+                field::mul(poly2[0], poly1[1]),
+            ),
+            field::add(
+                field::mul(poly1[0], poly2[2]),
+                field::mul(poly2[1], poly1[1]),
+            ),
             field::mul(poly1[1], poly2[2]),
-            ];
+        ];
         assert_eq!(pr, super::mul(&poly1[..2], &poly2));
 
         // poly2 is lower degree
         let pr = vec![
             field::mul(poly1[0], poly2[0]),
-            field::add(field::mul(poly1[0], poly2[1]), field::mul(poly2[0], poly1[1])),
-            field::add(field::mul(poly1[2], poly2[0]), field::mul(poly2[1], poly1[1])),
+            field::add(
+                field::mul(poly1[0], poly2[1]),
+                field::mul(poly2[0], poly1[1]),
+            ),
+            field::add(
+                field::mul(poly1[2], poly2[0]),
+                field::mul(poly2[1], poly1[1]),
+            ),
             field::mul(poly1[2], poly2[1]),
-            ];
+        ];
         assert_eq!(pr, super::mul(&poly1, &poly2[..2]));
     }
 
     #[test]
     fn mul_by_const() {
-        let poly = [384863712573444386, 7682273369345308472, 13294661765012277990];
+        let poly = [
+            384863712573444386,
+            7682273369345308472,
+            13294661765012277990,
+        ];
         let c: u128 = 11269864713250585702;
-        let pr = vec![ field::mul(poly[0], c), field::mul(poly[1], c), field::mul(poly[2], c) ];
+        let pr = vec![
+            field::mul(poly[0], c),
+            field::mul(poly[1], c),
+            field::mul(poly[2], c),
+        ];
         assert_eq!(pr, super::mul_by_const(&poly, c));
     }
 
     #[test]
     fn div() {
-        let poly1: Vec<u128> = vec![384863712573444386, 7682273369345308472, 13294661765012277990];
-        let poly2: Vec<u128> = vec![9918505539874556741, 16401861429499852246, 12181445947541805654];
+        let poly1: Vec<u128> = vec![
+            384863712573444386,
+            7682273369345308472,
+            13294661765012277990,
+        ];
+        let poly2: Vec<u128> = vec![
+            9918505539874556741,
+            16401861429499852246,
+            12181445947541805654,
+        ];
 
         // divide degree 4 by degree 2
         let poly3 = super::mul(&poly1, &poly2);
@@ -468,7 +555,6 @@ mod tests {
 
     #[test]
     fn syn_div_expanded_in_place() {
-
         // build the polynomial
         let ys = vec![0, 1, 2, 3, 0, 5, 6, 7, 0, 9, 10, 11, 12, 13, 14, 15];
         let mut poly = ys.clone();
@@ -481,7 +567,7 @@ mod tests {
         let z_poly = vec![field::neg(field::ONE), 0, 0, 0, 1];
         let z_degree = z_poly.len() - 1;
         let z_poly = super::div(&z_poly, &[field::neg(domain[12]), 1]);
-        
+
         // compute the result
         let mut result = poly.clone();
         super::syn_div_expanded_in_place(&mut result, z_degree, &[domain[12]]);

@@ -1,11 +1,8 @@
+use super::opcodes::{FlowOps, UserOps};
 use crate::{
-    math::field,
-    utils::sponge,
-    MAX_CONTEXT_DEPTH, MAX_LOOP_DEPTH,
-    NUM_CF_OP_BITS, NUM_LD_OP_BITS, NUM_HD_OP_BITS,
-    SPONGE_WIDTH, BASE_CYCLE_LENGTH, PUSH_OP_ALIGNMENT,
+    math::field, utils::sponge, BASE_CYCLE_LENGTH, MAX_CONTEXT_DEPTH, MAX_LOOP_DEPTH,
+    NUM_CF_OP_BITS, NUM_HD_OP_BITS, NUM_LD_OP_BITS, PUSH_OP_ALIGNMENT, SPONGE_WIDTH,
 };
-use super::opcodes::{ FlowOps, UserOps };
 use sp_std::{vec, vec::Vec};
 
 #[cfg(test)]
@@ -14,53 +11,56 @@ mod tests;
 // TYPES AND INTERFACES
 // ================================================================================================
 pub struct Decoder {
+    step: usize,
 
-    step        : usize,
-
-    op_counter  : Vec<u128>,
+    op_counter: Vec<u128>,
     sponge_trace: [Vec<u128>; SPONGE_WIDTH],
-    sponge      : [u128; SPONGE_WIDTH],
+    sponge: [u128; SPONGE_WIDTH],
 
-    cf_op_bits  : [Vec<u128>; NUM_CF_OP_BITS],
-    ld_op_bits  : [Vec<u128>; NUM_LD_OP_BITS],
-    hd_op_bits  : [Vec<u128>; NUM_HD_OP_BITS],
+    cf_op_bits: [Vec<u128>; NUM_CF_OP_BITS],
+    ld_op_bits: [Vec<u128>; NUM_LD_OP_BITS],
+    hd_op_bits: [Vec<u128>; NUM_HD_OP_BITS],
 
-    ctx_stack   : Vec<Vec<u128>>,
-    ctx_depth   : usize,
+    ctx_stack: Vec<Vec<u128>>,
+    ctx_depth: usize,
 
-    loop_stack  : Vec<Vec<u128>>,
-    loop_depth  : usize,
+    loop_stack: Vec<Vec<u128>>,
+    loop_depth: usize,
 }
 
 // DECODER IMPLEMENTATION
 // ================================================================================================
 impl Decoder {
-
     /// Creates a new instance of instruction decoder.
     pub fn new(init_trace_length: usize) -> Decoder {
-
         // initialize operation counter
         let op_counter = vec![field::ZERO; init_trace_length];
 
         // initialize instruction sponge
         let sponge_trace = [
-            vec![field::ZERO; init_trace_length], vec![field::ZERO; init_trace_length],
-            vec![field::ZERO; init_trace_length], vec![field::ZERO; init_trace_length],
+            vec![field::ZERO; init_trace_length],
+            vec![field::ZERO; init_trace_length],
+            vec![field::ZERO; init_trace_length],
+            vec![field::ZERO; init_trace_length],
         ];
         let sponge = [field::ZERO; SPONGE_WIDTH];
 
         // initialize op_bits registers
         let cf_op_bits = [
-            vec![field::ZERO; init_trace_length], vec![field::ZERO; init_trace_length],
-            vec![field::ZERO; init_trace_length]
+            vec![field::ZERO; init_trace_length],
+            vec![field::ZERO; init_trace_length],
+            vec![field::ZERO; init_trace_length],
         ];
         let ld_op_bits = [
-            vec![field::ZERO; init_trace_length], vec![field::ZERO; init_trace_length],
-            vec![field::ZERO; init_trace_length], vec![field::ZERO; init_trace_length],
-            vec![field::ZERO; init_trace_length]
+            vec![field::ZERO; init_trace_length],
+            vec![field::ZERO; init_trace_length],
+            vec![field::ZERO; init_trace_length],
+            vec![field::ZERO; init_trace_length],
+            vec![field::ZERO; init_trace_length],
         ];
         let hd_op_bits = [
-            vec![field::ZERO; init_trace_length], vec![field::ZERO; init_trace_length]
+            vec![field::ZERO; init_trace_length],
+            vec![field::ZERO; init_trace_length],
         ];
 
         // initialize the stacks
@@ -72,10 +72,17 @@ impl Decoder {
 
         // create and return decoder
         return Decoder {
-            step: 0, 
-            op_counter, sponge, sponge_trace,
-            cf_op_bits, ld_op_bits, hd_op_bits,
-            ctx_stack, ctx_depth, loop_stack, loop_depth,
+            step: 0,
+            op_counter,
+            sponge,
+            sponge_trace,
+            cf_op_bits,
+            ld_op_bits,
+            hd_op_bits,
+            ctx_stack,
+            ctx_depth,
+            loop_stack,
+            loop_depth,
         };
     }
 
@@ -107,12 +114,24 @@ impl Decoder {
         let mut state = Vec::new();
 
         state.push(self.op_counter[step]);
-        for register in self.sponge_trace.iter() { state.push(register[step]); }
-        for register in self.cf_op_bits.iter()   { state.push(register[step]); }
-        for register in self.ld_op_bits.iter()   { state.push(register[step]); }
-        for register in self.hd_op_bits.iter()   { state.push(register[step]); }
-        for register in self.ctx_stack.iter()    { state.push(register[step]); }
-        for register in self.loop_stack.iter()   { state.push(register[step]); }
+        for register in self.sponge_trace.iter() {
+            state.push(register[step]);
+        }
+        for register in self.cf_op_bits.iter() {
+            state.push(register[step]);
+        }
+        for register in self.ld_op_bits.iter() {
+            state.push(register[step]);
+        }
+        for register in self.hd_op_bits.iter() {
+            state.push(register[step]);
+        }
+        for register in self.ctx_stack.iter() {
+            state.push(register[step]);
+        }
+        for register in self.loop_stack.iter() {
+            state.push(register[step]);
+        }
 
         return state;
     }
@@ -159,8 +178,11 @@ impl Decoder {
 
     /// Initiates a new program block (Group or Switch).
     pub fn start_block(&mut self) {
-        assert!(self.step % BASE_CYCLE_LENGTH == BASE_CYCLE_LENGTH - 1,
-            "cannot start context block at step {}: operation alignment is not valid", self.step);
+        assert!(
+            self.step % BASE_CYCLE_LENGTH == BASE_CYCLE_LENGTH - 1,
+            "cannot start context block at step {}: operation alignment is not valid",
+            self.step
+        );
 
         self.advance_step(false);
         self.save_context();
@@ -171,8 +193,11 @@ impl Decoder {
 
     /// Terminates a program block (Group, Switch, or Loop).
     pub fn end_block(&mut self, sibling_hash: u128, true_branch: bool) {
-        assert!(self.step % BASE_CYCLE_LENGTH == 0,
-            "cannot exit context block at step {}: operation alignment is not valid", self.step);
+        assert!(
+            self.step % BASE_CYCLE_LENGTH == 0,
+            "cannot exit context block at step {}: operation alignment is not valid",
+            self.step
+        );
 
         self.advance_step(false);
         let context_hash = self.pop_context();
@@ -183,8 +208,7 @@ impl Decoder {
             // we are closing true branch of execution
             self.set_op_bits(FlowOps::Tend, UserOps::Noop);
             self.set_sponge([context_hash, block_hash, sibling_hash, 0]);
-        }
-        else {
+        } else {
             // we are closing false branch of execution
             self.set_op_bits(FlowOps::Fend, UserOps::Noop);
             self.set_sponge([context_hash, sibling_hash, block_hash, 0]);
@@ -193,8 +217,11 @@ impl Decoder {
 
     /// Initiates a new Loop block
     pub fn start_loop(&mut self, loop_image: u128) {
-        assert!(self.step % BASE_CYCLE_LENGTH == BASE_CYCLE_LENGTH - 1,
-            "cannot start a loop at step {}: operation alignment is not valid", self.step);
+        assert!(
+            self.step % BASE_CYCLE_LENGTH == BASE_CYCLE_LENGTH - 1,
+            "cannot start a loop at step {}: operation alignment is not valid",
+            self.step
+        );
 
         self.advance_step(false);
         self.save_context();
@@ -205,40 +232,57 @@ impl Decoder {
 
     /// Prepares the decoder for the next iteration of a loop.
     pub fn wrap_loop(&mut self) {
-        assert!(self.step % BASE_CYCLE_LENGTH == BASE_CYCLE_LENGTH - 1,
-            "cannot wrap a loop at step {}: operation alignment is not valid", self.step);
+        assert!(
+            self.step % BASE_CYCLE_LENGTH == BASE_CYCLE_LENGTH - 1,
+            "cannot wrap a loop at step {}: operation alignment is not valid",
+            self.step
+        );
 
         self.advance_step(false);
         self.copy_context_stack();
-        assert!(self.sponge[0] == self.peek_loop_image(),
-            "cannot wrap a loop at step {}: hash of the last iteration doesn't match loop image", self.step);
+        assert!(
+            self.sponge[0] == self.peek_loop_image(),
+            "cannot wrap a loop at step {}: hash of the last iteration doesn't match loop image",
+            self.step
+        );
         self.set_op_bits(FlowOps::Wrap, UserOps::Noop);
         self.set_sponge([0, 0, 0, 0]);
     }
 
     /// Prepares the decoder for exiting a loop.
     pub fn break_loop(&mut self) {
-        assert!(self.step % BASE_CYCLE_LENGTH == BASE_CYCLE_LENGTH - 1,
-            "cannot break a loop at step {}: operation alignment is not valid", self.step);
+        assert!(
+            self.step % BASE_CYCLE_LENGTH == BASE_CYCLE_LENGTH - 1,
+            "cannot break a loop at step {}: operation alignment is not valid",
+            self.step
+        );
 
         self.advance_step(false);
         self.copy_context_stack();
-        assert!(self.sponge[0] == self.pop_loop_image(),
-            "cannot break a loop at step {}: hash of the last iteration doesn't match loop image", self.step);
+        assert!(
+            self.sponge[0] == self.pop_loop_image(),
+            "cannot break a loop at step {}: hash of the last iteration doesn't match loop image",
+            self.step
+        );
         self.set_op_bits(FlowOps::Break, UserOps::Noop);
         self.set_sponge(self.sponge);
     }
 
     /// Updates the decoder with the value of the specified operation.
     pub fn decode_op(&mut self, op_code: UserOps, op_value: u128) {
-        
         // op_value can be provided only for a PUSH operation and only
         // at steps which are multiples of 8
         if op_value != field::ZERO {
             match op_code {
-                UserOps::Push => assert!(self.step % PUSH_OP_ALIGNMENT == 0,
-                        "invalid PUSH operation alignment at step {}", self.step),
-                _ => panic!("invalid {:?} operation at step {}: op_value is non-zero", op_code, self.step),
+                UserOps::Push => assert!(
+                    self.step % PUSH_OP_ALIGNMENT == 0,
+                    "invalid PUSH operation alignment at step {}",
+                    self.step
+                ),
+                _ => panic!(
+                    "invalid {:?} operation at step {}: op_value is non-zero",
+                    op_code, self.step
+                ),
             }
         }
 
@@ -257,14 +301,26 @@ impl Decoder {
         fill_register(&mut self.op_counter, self.step + 1, last_op_count);
 
         // set all bit registers to 1 to indicate NOOP operation
-        for register in self.cf_op_bits.iter_mut() { fill_register(register, self.step, field::ONE); }
-        for register in self.ld_op_bits.iter_mut() { fill_register(register, self.step, field::ONE); }
-        for register in self.hd_op_bits.iter_mut() { fill_register(register, self.step, field::ONE); }
+        for register in self.cf_op_bits.iter_mut() {
+            fill_register(register, self.step, field::ONE);
+        }
+        for register in self.ld_op_bits.iter_mut() {
+            fill_register(register, self.step, field::ONE);
+        }
+        for register in self.hd_op_bits.iter_mut() {
+            fill_register(register, self.step, field::ONE);
+        }
 
         // for sponge and stack registers, just copy the value of the last state of the register
-        for register in self.sponge_trace.iter_mut() { fill_register(register, self.step + 1, register[self.step]); }
-        for register in self.ctx_stack.iter_mut()    { fill_register(register, self.step + 1, register[self.step]); }
-        for register in self.loop_stack.iter_mut()   { fill_register(register, self.step + 1, register[self.step]); }
+        for register in self.sponge_trace.iter_mut() {
+            fill_register(register, self.step + 1, register[self.step]);
+        }
+        for register in self.ctx_stack.iter_mut() {
+            fill_register(register, self.step + 1, register[self.step]);
+        }
+        for register in self.loop_stack.iter_mut() {
+            fill_register(register, self.step + 1, register[self.step]);
+        }
 
         // update the step pointer to point to the last step
         self.step = self.trace_length() - 1;
@@ -283,26 +339,36 @@ impl Decoder {
             let new_length = self.trace_length() * 2;
 
             self.op_counter.resize(new_length, field::ZERO);
-            for register in self.sponge_trace.iter_mut() { register.resize(new_length, field::ZERO); }
-            for register in self.cf_op_bits.iter_mut()   { register.resize(new_length, field::ZERO); }
-            for register in self.ld_op_bits.iter_mut()   { register.resize(new_length, field::ZERO); }
-            for register in self.hd_op_bits.iter_mut()   { register.resize(new_length, field::ZERO); }
-            for register in self.ctx_stack.iter_mut()    { register.resize(new_length, field::ZERO); }
-            for register in self.loop_stack.iter_mut()   { register.resize(new_length, field::ZERO); }
+            for register in self.sponge_trace.iter_mut() {
+                register.resize(new_length, field::ZERO);
+            }
+            for register in self.cf_op_bits.iter_mut() {
+                register.resize(new_length, field::ZERO);
+            }
+            for register in self.ld_op_bits.iter_mut() {
+                register.resize(new_length, field::ZERO);
+            }
+            for register in self.hd_op_bits.iter_mut() {
+                register.resize(new_length, field::ZERO);
+            }
+            for register in self.ctx_stack.iter_mut() {
+                register.resize(new_length, field::ZERO);
+            }
+            for register in self.loop_stack.iter_mut() {
+                register.resize(new_length, field::ZERO);
+            }
         }
 
         // for user ops, increment counter by 1; otherwise, copy counter from thee previous step
         if is_user_op {
             self.op_counter[self.step] = self.op_counter[self.step - 1] + 1;
-        }
-        else {
+        } else {
             self.op_counter[self.step] = self.op_counter[self.step - 1];
         }
     }
-    
+
     /// Populates all bits registers based on the opcodes for control flow and user operations.
     fn set_op_bits(&mut self, flow_op: FlowOps, user_op: UserOps) {
-
         // op_bits are always populated for the previous step
         let step = self.step - 1;
 
@@ -328,7 +394,11 @@ impl Decoder {
     fn save_context(&mut self) {
         // increment context depth and make sure it doesn't overflow the stack
         self.ctx_depth += 1;
-        assert!(self.ctx_depth <= MAX_CONTEXT_DEPTH, "context stack overflow at step {}", self.step);
+        assert!(
+            self.ctx_depth <= MAX_CONTEXT_DEPTH,
+            "context stack overflow at step {}",
+            self.step
+        );
 
         // if the depth exceeds current number of registers allocated for the context stack,
         // add a new register trace to the stack
@@ -349,7 +419,11 @@ impl Decoder {
     /// Removes the top value from the context stack and returns it.
     fn pop_context(&mut self) -> u128 {
         // make sure the stack is not empty
-        assert!(self.ctx_depth > 0, "context stack underflow at step {}", self.step);
+        assert!(
+            self.ctx_depth > 0,
+            "context stack underflow at step {}",
+            self.step
+        );
 
         // shift all stack values by one item to the left
         for i in 1..self.ctx_stack.len() {
@@ -376,7 +450,11 @@ impl Decoder {
     fn save_loop_image(&mut self, loop_image: u128) {
         // increment loop depth and make sure it doesn't overflow the stack
         self.loop_depth += 1;
-        assert!(self.loop_depth <= MAX_LOOP_DEPTH, "loop stack overflow at step {}", self.step);
+        assert!(
+            self.loop_depth <= MAX_LOOP_DEPTH,
+            "loop stack overflow at step {}",
+            self.step
+        );
 
         // if the depth exceeds current number of registers allocated for the loop stack,
         // add a new register trace to the stack
@@ -397,7 +475,11 @@ impl Decoder {
     /// the top value of the stack.
     fn peek_loop_image(&mut self) -> u128 {
         // make sure the stack is not empty
-        assert!(self.loop_depth > 0, "loop stack underflow at step {}", self.step);
+        assert!(
+            self.loop_depth > 0,
+            "loop stack underflow at step {}",
+            self.step
+        );
 
         // copy all values of the stack from the last step to the current step
         for i in 0..self.loop_stack.len() {
@@ -411,7 +493,11 @@ impl Decoder {
     // Removes the top value from the loop stack and returns it.
     fn pop_loop_image(&mut self) -> u128 {
         // make sure the stack is not empty
-        assert!(self.loop_depth > 0, "loop stack underflow at step {}", self.step);
+        assert!(
+            self.loop_depth > 0,
+            "loop stack underflow at step {}",
+            self.step
+        );
 
         // shift all stack values by one item to the left
         for i in 1..self.loop_stack.len() {
@@ -434,7 +520,7 @@ impl Decoder {
     // HASH ACCUMULATOR HELPERS
     // --------------------------------------------------------------------------------------------
 
-    /// Sets the states of the sponge to the provided values and updates `sponge_trace` registers 
+    /// Sets the states of the sponge to the provided values and updates `sponge_trace` registers
     /// at the current step.
     fn set_sponge(&mut self, state: [u128; SPONGE_WIDTH]) {
         self.sponge = state;
@@ -447,7 +533,6 @@ impl Decoder {
     /// Applies a modified version of Rescue round to the sponge state and copies the result
     /// into `sponge_trace` registers.
     fn apply_hacc_round(&mut self, op_code: UserOps, op_value: u128) {
-
         // apply single round of sponge function
         sponge::apply_round(&mut self.sponge, op_code as u128, op_value, self.step - 1);
 

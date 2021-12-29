@@ -15,7 +15,7 @@ fn start_block() {
     for i in 0..decoder.trace_length() {
         decoder.print_state(i);
     }
-    
+
     assert_eq!(1, 2);
 }
 
@@ -35,7 +35,7 @@ fn start_loop() {
     for i in 0..decoder.trace_length() {
         decoder.print_state(i);
     }
-    
+
     assert_eq!(1, 2);
 }
 */

@@ -1,14 +1,20 @@
+use crate::{
+    crypto::MerkleTree,
+    math::{field, quartic},
+    stark::ProofOptions,
+};
 use sp_std::{mem, vec, vec::Vec};
-use crate::math::{ field, quartic };
-use crate::crypto::{ MerkleTree };
-use crate::stark::{ ProofOptions };
 
-use super::{ FriProof, FriLayer, utils, MAX_REMAINDER_LENGTH};
+use super::{utils, FriLayer, FriProof, MAX_REMAINDER_LENGTH};
 
 // PROVER FUNCTIONS
 // ================================================================================================
 
-pub fn reduce(evaluations: &[u128], domain: &[u128], options: &ProofOptions) -> (Vec<MerkleTree>, Vec<Vec<[u128; 4]>>) {
+pub fn reduce(
+    evaluations: &[u128],
+    domain: &[u128],
+    options: &ProofOptions,
+) -> (Vec<MerkleTree>, Vec<Vec<[u128; 4]>>) {
     let mut tree_results: Vec<MerkleTree> = Vec::new();
     let mut value_results: Vec<Vec<[u128; 4]>> = Vec::new();
 
@@ -19,7 +25,6 @@ pub fn reduce(evaluations: &[u128], domain: &[u128], options: &ProofOptions) -> 
 
     // reduce the degree by 4 at each iteration until the remaining polynomial is small enough
     while p_tree.leaves().len() * 4 > MAX_REMAINDER_LENGTH {
-
         // build polynomials from each row of the polynomial value matrix
         let depth = tree_results.len() as u32;
         let xs = quartic::transpose(domain, usize::pow(4, depth));
@@ -52,7 +57,11 @@ pub fn reduce(evaluations: &[u128], domain: &[u128], options: &ProofOptions) -> 
     return (tree_results, value_results);
 }
 
-pub fn build_proof(trees: Vec<MerkleTree>, values: Vec<Vec<[u128; 4]>>, positions: &[usize]) -> FriProof {
+pub fn build_proof(
+    trees: Vec<MerkleTree>,
+    values: Vec<Vec<[u128; 4]>>,
+    positions: &[usize],
+) -> FriProof {
     let mut positions = positions.to_vec();
     let mut domain_size = trees[0].leaves().len() * 4;
 
@@ -60,22 +69,21 @@ pub fn build_proof(trees: Vec<MerkleTree>, values: Vec<Vec<[u128; 4]>>, position
     // to row evaluations, and values for row evaluations
     let mut layers = Vec::with_capacity(trees.len());
     for i in 0..(trees.len() - 1) {
-        
         positions = utils::get_augmented_positions(&positions, domain_size);
 
         let tree = &trees[i];
         let proof = tree.prove_batch(&positions);
-        
+
         let mut queried_values: Vec<[u128; 4]> = Vec::with_capacity(positions.len());
         for &position in positions.iter() {
             queried_values.push(values[i][position]);
         }
 
         layers.push(FriLayer {
-            root    : *tree.root(),
-            values  : queried_values,
-            nodes   : proof.nodes,
-            depth   : proof.depth
+            root: *tree.root(),
+            values: queried_values,
+            nodes: proof.nodes,
+            depth: proof.depth,
         });
         domain_size = domain_size / 4;
     }
@@ -92,5 +100,9 @@ pub fn build_proof(trees: Vec<MerkleTree>, values: Vec<Vec<[u128; 4]>>, position
         remainder[i + n * 3] = last_values[i][3];
     }
 
-    return FriProof { layers, rem_root: *last_tree.root(), rem_values: remainder };
+    return FriProof {
+        layers,
+        rem_root: *last_tree.root(),
+        rem_values: remainder,
+    };
 }

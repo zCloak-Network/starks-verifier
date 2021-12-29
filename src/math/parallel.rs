@@ -1,6 +1,5 @@
+use crate::{math::field, utils::uninit_vector};
 use crossbeam_utils::thread;
-use crate::math::{ field };
-use crate::utils::{ uninit_vector };
 use sp_std::vec::Vec;
 // use wasm_bindgen_test::*;
 
@@ -11,15 +10,17 @@ use sp_std::vec::Vec;
 /// which are distributed across multiple threads.
 pub fn add(a: &[u128], b: &[u128], num_threads: usize) -> Vec<u128> {
     let n = a.len();
-    assert!(n == b.len(), "number of values must be the same for both operands");
+    assert!(
+        n == b.len(),
+        "number of values must be the same for both operands"
+    );
     // assert!(n % num_threads == 0, "number of values must be divisible by number of threads");
     // let batch_size = n / num_threads;
 
     // allocate space for the results
     let mut result = uninit_vector(n);
-    for i in(0..n){
+    for i in (0..n) {
         result[i] = field::add(a[i], b[i]);
-
     }
     // add batches of values in separate threads
     // thread::scope(|s| {
@@ -41,12 +42,15 @@ pub fn add(a: &[u128], b: &[u128], num_threads: usize) -> Vec<u128> {
 /// batches which are distributed across multiple threads.
 pub fn add_in_place(a: &mut [u128], b: &[u128], num_threads: usize) {
     let n = a.len();
-    assert!(n == b.len(), "number of values must be the same for both operands");
+    assert!(
+        n == b.len(),
+        "number of values must be the same for both operands"
+    );
     //assert!(n % num_threads == 0, "number of values must be divisible by number of threads");
-    for i in(0..n){
-        a[i] = field::add(a[i],b[i]);
+    for i in (0..n) {
+        a[i] = field::add(a[i], b[i]);
     }
-    
+
     // let batch_size = n / num_threads;
     // // add batches of values in separate threads
     // thread::scope(|s| {
@@ -59,8 +63,6 @@ pub fn add_in_place(a: &mut [u128], b: &[u128], num_threads: usize) {
     //         });
     //     }
     // }).unwrap();
-
-
 }
 
 // SUBTRACTION
@@ -70,13 +72,15 @@ pub fn add_in_place(a: &mut [u128], b: &[u128], num_threads: usize) {
 /// batches which are distributed across multiple threads.
 pub fn sub_const_in_place(a: &mut [u128], b: u128, num_threads: usize) {
     let n = a.len();
-    assert!(n % num_threads == 0, "number of values must be divisible by number of threads");
+    assert!(
+        n % num_threads == 0,
+        "number of values must be divisible by number of threads"
+    );
     // let batch_size = n / num_threads;
 
-    for i in(0..n){
+    for i in (0..n) {
         a[i] = field::sub(a[i], b);
-
-    };
+    }
     // subtract batches of values in separate threads
     // thread::scope(|s| {
     //     for i in (0..n).step_by(batch_size) {
@@ -97,7 +101,10 @@ pub fn sub_const_in_place(a: &mut [u128], b: u128, num_threads: usize) {
 /// batches which are distributed across multiple threads.
 pub fn mul(a: &[u128], b: &[u128], num_threads: usize) -> Vec<u128> {
     let n = a.len();
-    assert!(n == b.len(), "number of values must be the same for both operands");
+    assert!(
+        n == b.len(),
+        "number of values must be the same for both operands"
+    );
     // assert!(n % num_threads == 0, "number of values must be divisible by number of threads");
     // let batch_size = n / num_threads;
 
@@ -107,7 +114,6 @@ pub fn mul(a: &[u128], b: &[u128], num_threads: usize) -> Vec<u128> {
 
     for i in (0..n) {
         result[i] = field::mul(a[i], b[i]);
-
     }
 
     // // multiply batches of values in separate threads
@@ -126,16 +132,18 @@ pub fn mul(a: &[u128], b: &[u128], num_threads: usize) -> Vec<u128> {
     return result;
 }
 
-/// Computes a[i] * b[i] for all i and stores the results in b[i]. The multiplication is 
+/// Computes a[i] * b[i] for all i and stores the results in b[i]. The multiplication is
 /// split into batches which are distributed across multiple threads.
 pub fn mul_in_place(a: &mut [u128], b: &[u128], num_threads: usize) {
     let n = a.len();
-    assert!(n == b.len(), "number of values must be the same for both operands");
+    assert!(
+        n == b.len(),
+        "number of values must be the same for both operands"
+    );
     // assert!(n % num_threads == 0, "number of values must be divisible by number of threads");
     // let batch_size = n / num_threads;
-    for i in (0..n){
+    for i in (0..n) {
         a[i] = field::mul(a[i], b[i]);
-
     }
     // multiply batches of values in separate threads
     // thread::scope(|s| {
@@ -150,16 +158,18 @@ pub fn mul_in_place(a: &mut [u128], b: &[u128], num_threads: usize) {
     // }).unwrap();
 }
 
-/// Computes a[i] + b[i] * c for all i and saves result into a. The operation is 
+/// Computes a[i] + b[i] * c for all i and saves result into a. The operation is
 /// split into batches which are distributed across multiple threads.
-pub fn mul_acc(a: &mut[u128], b: &[u128], c: u128, num_threads: usize) {
+pub fn mul_acc(a: &mut [u128], b: &[u128], c: u128, num_threads: usize) {
     let n = a.len();
-    assert!(n == b.len(), "number of values must be the same for both arrays");
+    assert!(
+        n == b.len(),
+        "number of values must be the same for both arrays"
+    );
     // assert!(n % num_threads == 0, "number of values must be divisible by number of threads");
     // let batch_size = n / num_threads;
-    for i in (0..n){
+    for i in (0..n) {
         a[i] = field::add(a[i], field::mul(b[i], c));
-
     }
     // // accumulate batches of values in separate threads
     // thread::scope(|s| {
@@ -186,11 +196,11 @@ pub fn inv(values: &[u128], num_threads: usize) -> Vec<u128> {
 
     // allocate space for the results
     let result = uninit_vector(n);
-        let values_slice = &values[..];
-        let values_slice = unsafe { &*(values_slice as *const _ as *const [u128]) };
-        let result_slice = &result[..];
-        let result_slice = unsafe { &mut *(result_slice as *const _ as *mut [u128]) };
-        field::inv_many_fill(values_slice, result_slice);
+    let values_slice = &values[..];
+    let values_slice = unsafe { &*(values_slice as *const _ as *const [u128]) };
+    let result_slice = &result[..];
+    let result_slice = unsafe { &mut *(result_slice as *const _ as *mut [u128]) };
+    field::inv_many_fill(values_slice, result_slice);
     // break up the values into batches and invert each batch in a separate thread
     // thread::scope(|s| {
     //     for i in (0..n).step_by(batch_size) {
@@ -212,11 +222,10 @@ pub fn inv(values: &[u128], num_threads: usize) -> Vec<u128> {
 // ================================================================================================
 #[cfg(test)]
 mod tests {
-    use crate::math::{ field };
+    use crate::math::field;
 
     #[test]
     fn add() {
-
         let n: usize = 1024;
         let num_threads: usize = 4;
         let x = field::rand_vector(n);
@@ -233,7 +242,6 @@ mod tests {
 
     #[test]
     fn add_in_place() {
-
         let n: usize = 1024;
         let num_threads: usize = 4;
         let x = field::rand_vector(n);
@@ -252,7 +260,6 @@ mod tests {
 
     #[test]
     fn sub_const_in_place() {
-
         let n: usize = 1024;
         let num_threads: usize = 4;
         let mut x = field::rand_vector(n);
@@ -270,7 +277,6 @@ mod tests {
 
     #[test]
     fn mul() {
-
         let n: usize = 1024;
         let num_threads: usize = 4;
         let x = field::rand_vector(n);
@@ -287,7 +293,6 @@ mod tests {
 
     #[test]
     fn mul_in_place() {
-
         let n: usize = 1024;
         let num_threads: usize = 4;
         let x = field::rand_vector(n);
@@ -322,7 +327,6 @@ mod tests {
 
     #[test]
     fn inv() {
-
         let n: usize = 1024;
         let num_threads: usize = 4;
         let v = field::rand_vector(n);

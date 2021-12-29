@@ -1,15 +1,23 @@
-use criterion::{ black_box, criterion_group, Criterion };
-use starksVM::math::{ field, fft };
+use criterion::{black_box, criterion_group, Criterion};
+use starksVM::math::{fft, field};
 
 pub fn fft_in_place(c: &mut Criterion) {
-
     let size: usize = 1 << 12;
     let mut values = field::rand_vector(size);
     let r = field::get_root_of_unity(size);
     let twiddles = fft::get_twiddles(r, size);
 
     c.bench_function("FFT (in-place)", |bench| {
-        bench.iter(|| fft::fft_in_place(black_box(&mut values), black_box(&twiddles), black_box(1), black_box(1), black_box(0), black_box(1)))
+        bench.iter(|| {
+            fft::fft_in_place(
+                black_box(&mut values),
+                black_box(&twiddles),
+                black_box(1),
+                black_box(1),
+                black_box(0),
+                black_box(1),
+            )
+        })
     });
 }
 
